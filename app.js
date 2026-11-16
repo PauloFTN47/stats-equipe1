@@ -13,15 +13,6 @@
   function save(k, v) { try { window.localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* stockage indisponible */ } }
   function drop(k) { try { window.localStorage.removeItem(k); } catch (e) { /* ignore */ } }
 
-  /* ---------- Clé du lien ---------- */
-
-  // Le lien envoyé par le capitaine finit par #k=XXXXXXXX. La clé reste sur l'appareil et part avec chaque requête.
-  function getKey() {
-    var m = /[#?&]k=([A-Za-z0-9_-]{4,64})/.exec(window.location.hash + window.location.search);
-    if (m) { save(K.key, m[1]); return m[1]; }
-    return load(K.key, '');
-  }
-
   /* ---------- Réseau ---------- */
 
   class NetError extends Error {}
@@ -40,15 +31,14 @@
   }
 
   async function post(body) {
-    var res = await request(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ key: getKey() }, body)) });
-    if (res && res.error && res.error.code === 'KEY') drop(K.key);        // clé refusée : elle sera redemandée au prochain démarrage
+    var res = await request(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
     return res;
   }
 
   /* ---------- Affichage ---------- */
 
   function show(screen) {
-    ['loading', 'key', 'login', 'staff-login', 'staff', 'app'].forEach(function (s) { $('screen-' + s).hidden = s !== screen; });
+    ['loading', 'login', 'staff-login', 'staff', 'app'].forEach(function (s) { $('screen-' + s).hidden = s !== screen; });
   }
 
   function setMsg(id, text, kind) {
@@ -102,18 +92,12 @@
       return;
     }
 
-    var key = getKey();
-    if (!key) { enterKey(''); return; }
+    drop(K.key);   // ancienne clé d'accès : plus utilisée
 
     var data = null;
     try {
-      var res = await request(API + '?action=init&key=' + encodeURIComponent(key));
+      var res = await request(API + '?action=init');
       if (res && res.ok) { data = res; save(K.init, res); }
-      else if (res && res.error && res.error.code === 'KEY') {
-        drop(K.key); drop(K.init); drop(K.session); drop(K.staff); drop(K.sov); drop(K.scal);
-        enterKey('Clé refusée. Rouvre le lien reçu du capitaine ou ressaisis la clé.');
-        return;
-      }
     } catch (e) { /* hors ligne : on retombe sur la dernière copie */ }
     if (!data) data = load(K.init, null);
     if (!data) {
@@ -130,20 +114,6 @@
     else if (st && st.me && st.me.actions && data.staff && data.staff.indexOf(st.name) >= 0) { state.staff = st; enterStaff(); }
     else enterLogin();
   }
-
-  function enterKey(msg) {
-    $('key-input').value = '';
-    if (msg) setMsg('key-msg', msg, 'err'); else hideMsg('key-msg');
-    show('key');
-  }
-
-  $('key-form').addEventListener('submit', function (ev) {
-    ev.preventDefault();
-    var v = $('key-input').value.trim();
-    if (!/^[A-Za-z0-9_-]{4,64}$/.test(v)) return setMsg('key-msg', 'Clé invalide : lettres et chiffres uniquement.', 'err');
-    save(K.key, v);
-    boot();
-  });
 
   function enterLogin() {
     fill($('login-player'), state.data.players, 'Choisis ton nom');
@@ -1291,107 +1261,37 @@
     var c1 = card('Sélection ' + ov.season, (ov.period && ov.period.label) || '');
     var dl = el('dl', 'kv');
     kv(dl, 'Joueurs', n);
-    kv(dl, 'Sélectionnables', t.nSelectable + ' / ' + n);
+    kv(dl, 'Critères remplis (sélectionnables)', t.nSelectable + ' / ' + n);
+    kv(dl, 'Critères non remplis', (n - t.nSelectable) + ' / ' + n);
     c1.appendChild(dl);
     var rbox = el('div', 'role-line');
     Object.keys(t.roles).sort(function (a, b) { return roleRank(a) - roleRank(b); }).forEach(function (r) {
       if (t.roles[r]) rbox.appendChild(roleBadge(r, r + ' · ' + t.roles[r]));
     });
     c1.appendChild(rbox);
-    c1.appendChild(el('p', 'hint small', 'Rôles et critères lus dans l’onglet « Equipe 2027 » du fichier. Un joueur sans rôle manque souvent de tours datés dans sa fiche.'));
     body.appendChild(c1);
 
-    var c2 = card('Fraîcheur des données', 'Tours datés depuis le ' + frDate(ov.period.start) + ' (règle de sélection) et statistiques complètes.');
-    var dl2 = el('dl', 'kv');
-    kv(dl2, 'À relancer', t.nRelaunch + ' / ' + n);
-    kv(dl2, 'Profils établis', t.nProfiled + ' / ' + n + (t.nProvisional ? ' (dont ' + t.nProvisional + ' provisoires)' : ''));
-    c2.appendChild(dl2);
-    var late = ov.players.filter(function (p) { return p.fresh.status !== 'ok'; });
-    if (late.length) {
-      var ul = el('ul', 'rounds');
-      late.forEach(function (p) {
+    function whoList(title, cls, list) {
+      var c = card(title + ' · ' + list.length);
+      if (!list.length) { c.appendChild(el('p', 'empty', 'Aucun joueur pour le moment.')); body.appendChild(c); return; }
+      var ul = el('ul', 'rk');
+      list.forEach(function (p) {
         var li = el('li');
-        li.appendChild(el('div', 't', p.name));
-        li.appendChild(el('div', 'r', freshText(p.fresh)));
+        li.appendChild(el('span', 'pos ' + cls, cls === 'yes' ? '✓' : '·'));
+        var who = el('div', 'who');
+        who.appendChild(el('b', null, p.name));
+        if (p.selection && p.selection.role) who.appendChild(roleBadge(p.selection.role, null, true));
+        li.appendChild(who);
         ul.appendChild(li);
       });
-      c2.appendChild(ul);
-    } else c2.appendChild(el('p', 'empty', 'Tous les joueurs ont saisi récemment.'));
-    body.appendChild(c2);
-
-    var c3 = card('Profil de jeu de l’équipe', 'Pour chaque axe : la moyenne de l’équipe, puis les joueurs les plus forts et les plus faibles par rapport au groupe (valeur entre parenthèses).');
-    var fw = el('p', 'focus');
-    if (t.weakAxes && t.weakAxes.length) {
-      fw.appendChild(el('b', null, 'À travailler en priorité (équipe) : '));
-      fw.appendChild(document.createTextNode(t.weakAxes.join(', ')));
-    } else fw.appendChild(document.createTextNode('Aucun point faible collectif net pour le moment.'));
-    c3.appendChild(fw);
-    t.axes.forEach(function (a) {
-      var rows = ov.players.map(function (p) {
-        var x = p.profile && p.profile.axes && p.profile.axes[a.key];
-        return x && x.z !== null && x.z !== undefined ? { name: p.name, z: x.z, level: x.level, value: x.value } : null;
-      }).filter(Boolean).sort(function (u, v) { return v.z - u.z; });
-      function fmt(v) { return a.key === 'put' ? num(v, 2) : pct(v); }
-      var blk = el('div', 'axis');
-      var hd = el('div', 'axis-head');
-      hd.appendChild(el('b', null, a.label));
-      hd.appendChild(el('span', 'muted', a.ref ? 'Équipe : ' + fmt(a.ref.mu) : 'peu d’informations'));
-      blk.appendChild(hd);
-      [['fort', 'Forts', 'ok'], ['faible', 'Faibles', 'wait']].forEach(function (g) {
-        var who = rows.filter(function (r) { return r.level === g[0]; }).map(function (r) { return r.name + ' (' + fmt(r.value) + ')'; });
-        var ln = el('div', 'axis-line');
-        ln.appendChild(el('span', 'badge ' + g[2], g[1]));
-        ln.appendChild(el('span', who.length ? '' : 'muted', who.length ? who.join(', ') : a.known >= 4 ? 'personne' : 'peu d’informations'));
-        blk.appendChild(ln);
-      });
-      c3.appendChild(blk);
-    });
-    c3.appendChild(el('p', 'focus', 'Points forts et points faibles par joueur'));
-    ov.players.map(function (p, i) { return { p: p, i: i }; }).sort(function (a, b) {
+      c.appendChild(ul);
+      body.appendChild(c);
+    }
+    var sorted = ov.players.map(function (p, i) { return { p: p, i: i }; }).sort(function (a, b) {
       return roleRank(a.p.selection && a.p.selection.role) - roleRank(b.p.selection && b.p.selection.role) || a.i - b.i;
-    }).forEach(function (x) {
-      var p = x.p;
-      var forts = [], faibles = [];
-      ['dep', 'app', 'put', 'chip'].forEach(function (k) {
-        var a = p.profile && p.profile.axes && p.profile.axes[k];
-        if (!a) return;
-        if (a.level === 'fort') forts.push(a.label);
-        else if (a.level === 'faible') faibles.push(a.label);
-      });
-      var row = el('div', 'axis');
-      var hd = el('div', 'axis-head');
-      hd.appendChild(el('b', null, p.name));
-      if (p.selection && p.selection.role) hd.appendChild(roleBadge(p.selection.role, null, true));
-      row.appendChild(hd);
-      var known = p.profile && p.profile.category;
-      [['Forts', forts, 'ok'], ['Faibles', faibles, 'wait']].forEach(function (g) {
-        var ln = el('div', 'axis-line');
-        ln.appendChild(el('span', 'badge ' + g[2], g[0]));
-        ln.appendChild(el('span', g[1].length ? '' : 'muted', g[1].length ? g[1].join(', ') : (known ? 'aucun' : 'peu d’informations')));
-        row.appendChild(ln);
-      });
-      c3.appendChild(row);
-    });
-    c3.appendChild(el('p', 'hint small', 'Profil calculé sur les 12 derniers tours avec statistiques complètes. Provisoire en dessous de 8 tours, non classé en dessous de 4. Fort à +0,5 écart-type ou plus, faible à −0,5 ou moins.'));
-    body.appendChild(c3);
-
-    var c4 = card('Mental : critère le plus faible de l’équipe', 'Moyenne des joueurs ayant au moins 2 évaluations, affichée à partir de 5 joueurs. Aucune note individuelle.');
-    var any = false;
-    [['match', 'Après une compétition'], ['training', 'Après un entraînement']].forEach(function (k) {
-      var m = ov.mental && ov.mental[k[0]];
-      if (!m) return;
-      any = true;
-      var row = el('p', 'focus');
-      row.appendChild(el('b', null, k[1] + ' : '));
-      if (m.enough) {
-        row.appendChild(document.createTextNode((m.weakest.length ? m.weakest.join(', ') : 'aucun critère ne ressort') + ' (' + m.players + ' joueurs)'));
-      } else {
-        row.appendChild(document.createTextNode('peu d’informations (' + m.players + ' joueur' + (m.players > 1 ? 's' : '') + ', 5 minimum)'));
-      }
-      c4.appendChild(row);
-    });
-    if (!any) c4.appendChild(el('p', 'empty', 'Pas encore d’évaluation mentale.'));
-    body.appendChild(c4);
+    }).map(function (x) { return x.p; });
+    whoList('Sélectionnables', 'yes', sorted.filter(function (p) { return p.selection && p.selection.selectable === 'Oui'; }));
+    whoList('Critères non remplis', 'no', sorted.filter(function (p) { return !(p.selection && p.selection.selectable === 'Oui'); }));
   }
 
   /* -- Joueurs : liste puis fiche -- */

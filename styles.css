@@ -261,3 +261,6 @@ table.stats th { font-size: .8rem; }
 .rk .score .bad { color: var(--warn); }
 .rk .score .none { color: var(--muted); }
 .rk .score small { display: block; margin-top: 2px; font-size: .75rem; color: var(--muted); font-weight: 600; }
+
+.rk .pos.yes { background: var(--ok-bg); color: var(--accent); }
+.rk .pos.no { background: var(--warn-bg); color: var(--warn); }
