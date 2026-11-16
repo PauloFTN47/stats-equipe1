@@ -1400,7 +1400,7 @@
       b.appendChild(catBadges(p.profile));
       var line = el('div', 'pline');
       var f = p.form;
-      line.appendChild(document.createTextNode(f.avg5 === null ? 'Forme : pas assez de tours de compétition' : 'Forme : ' + signed(f.avg5) + ' au SSS (' + f.n5 + ' derniers tours) '));
+      line.appendChild(document.createTextNode(f.avg5 === null ? (f.avgAll === null || f.avgAll === undefined ? 'Forme : aucun tour de compétition cette saison' : 'Moyenne : ' + signed(f.avgAll) + ' au SSS (' + f.n5 + ' tour' + (f.n5 > 1 ? 's' : '') + ', pas assez pour la forme)') : 'Forme : ' + signed(f.avg5) + ' au SSS (' + f.n5 + ' derniers tours) '));
       var tr = trendNode(f.trend);
       if (tr) line.appendChild(tr);
       b.appendChild(line);
@@ -1540,12 +1540,13 @@
 
     var rest = ov.players.filter(function (p) { return p.rank === null; });
     if (rest.length) {
-      var c2 = card('Pas assez de tours de compétition', 'Moins de 3 tours de compétition avec écart au SSS : pas de classement.');
+      var c2 = card('Pas assez de tours de compétition', 'Moins de 3 tours de compétition de la saison avec écart au SSS : pas de classement, moyenne indicative.');
       var ul = el('ul', 'rounds');
       rest.forEach(function (p) {
         var li = el('li');
         li.appendChild(el('div', 't', p.name));
-        li.appendChild(el('div', 'r', p.form.nComp + ' tour' + (p.form.nComp > 1 ? 's' : '')));
+        var fa = p.form.avgAll;
+        li.appendChild(el('div', 'r', (fa === null || fa === undefined ? '' : 'Moyenne : ' + signed(fa) + ' au SSS · ') + p.form.nComp + ' tour' + (p.form.nComp > 1 ? 's' : '')));
         ul.appendChild(li);
       });
       c2.appendChild(ul);
