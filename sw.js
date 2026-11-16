@@ -2,13 +2,13 @@
 // Les appels à l'API Apps Script ne passent jamais par le cache.
 // Pour publier une nouvelle version de l'appli : changer le numéro ci-dessous ET le « ?v= » de styles.css, app.js et config.js
 // dans index.html et dans la liste SHELL (le navigateur ne peut plus mélanger ancien et nouveau fichier).
-var VERSION = 'stats-castel-v16';
+var VERSION = 'stats-castel-v17';
 var SHELL = [
   './',
   'index.html',
-  'styles.css?v=16',
-  'app.js?v=16',
-  'config.js?v=16',
+  'styles.css?v=17',
+  'app.js?v=17',
+  'config.js?v=17',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
