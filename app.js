@@ -276,7 +276,7 @@
     var body = $('space-body');
     body.textContent = '';
     var seg = el('div', 'seg');
-    [['match', 'Mes matchs'], ['training', 'Entraînement']].forEach(function (o) {
+    [['match', 'Mes compétitions'], ['training', 'Entraînement']].forEach(function (o) {
       var b = el('button', null, o[1]);
       b.type = 'button';
       b.setAttribute('aria-pressed', String(state.spaceView === o[0]));
@@ -306,7 +306,7 @@
       body.appendChild(none);
       return;
     }
-    var c = card('Mes stats à l’entraînement', 'Tous les tours saisis en type « Entraînement ». Ils ne comptent pas dans tes moyennes de match ni dans la sélection.');
+    var c = card('Mes stats à l’entraînement', 'Tous les tours saisis en type « Entraînement ». Ils ne comptent pas dans tes moyennes de compétition ni dans la sélection.');
     if (!t.n) {
       c.appendChild(el('p', 'empty', 'Aucun tour d’entraînement saisi pour le moment. Dans l’onglet Saisir, choisis « Entraînement ».'));
     } else {
@@ -407,7 +407,7 @@
   /** Reporting mental : moyenne par critère (dès 2 évaluations), critère à travailler en premier, historique. */
   function mentalCard(m) {
     var c = card('Mental', 'Tes auto-évaluations, notées de 1 (mauvais) à 4 (très bon). Elles sont confidentielles.');
-    var kinds = [['match', 'Après un match'], ['training', 'Après un entraînement']];
+    var kinds = [['match', 'Après une compétition'], ['training', 'Après un entraînement']];
     var any = false;
     kinds.forEach(function (k) {
       var d = m[k[0]];
@@ -767,7 +767,7 @@
   var MENTAL_ALERT = 12;   // après un match (4 critères, total sur 16) : total inférieur à 12 = alerte ; aucun seuil pour l'entraînement
   var MENTAL = {
     match: {
-      sub: 'après un match',
+      sub: 'après une compétition',
       items: [
         ['Évaluation de ma préparation', 'Échauffement, routine, matériel, repas et eau, état d’esprit au départ : étais-je prêt à bien débuter ? 4 = prêt et en confiance dès le trou 1. 1 = parti à froid ou dans le flou.'],
         ['Bien (mal) jouer', 'Ma qualité de jeu quand je ne suis pas à mon meilleur niveau. 4 = même sans mes meilleurs coups, j’ai trouvé comment scorer (jeu simplifié, bonnes décisions, erreurs limitées). 1 = j’ai subi mon mauvais jeu et il s’est aggravé.'],
@@ -961,7 +961,7 @@
   });
   $('type').addEventListener('change', renderMental);
 
-  /** Bascule Match / Tour d'entraînement dans Saisir : le tour d'entraînement est de type 3 (grille mentale d'entraînement). */
+  /** Bascule Compétition / Tour d'entraînement dans Saisir : le tour d'entraînement est de type 3 (grille mentale d'entraînement). */
   state.mode = 'match';
   function setMode(mode) {
     state.mode = mode;
@@ -1323,7 +1323,7 @@
 
     var c4 = card('Mental : critère le plus faible de l’équipe', 'Moyenne des joueurs ayant au moins 2 évaluations, affichée à partir de 5 joueurs. Aucune note individuelle.');
     var any = false;
-    [['match', 'Après un match'], ['training', 'Après un entraînement']].forEach(function (k) {
+    [['match', 'Après une compétition'], ['training', 'Après un entraînement']].forEach(function (k) {
       var m = ov.mental && ov.mental[k[0]];
       if (!m) return;
       any = true;
@@ -1549,7 +1549,7 @@
       var tot = p.match.n + p.training.n;
       sum.appendChild(el('span', 'hint', tot ? tot + ' évaluation' + (tot > 1 ? 's' : '') : 'aucune'));
       det.appendChild(sum);
-      [['match', 'Après un match'], ['training', 'Après un entraînement']].forEach(function (k) {
+      [['match', 'Après une compétition'], ['training', 'Après un entraînement']].forEach(function (k) {
         var m = p[k[0]];
         if (!m || !m.n) return;
         var sec = el('div', 'mental-sec');
