@@ -1528,45 +1528,48 @@
   function renderRanking(ov) {
     var body = $('s-rank-body');
     body.textContent = '';
-    var c = card('Forme', 'Moyenne de l’écart au SSS sur les 5 derniers tours de compétition de la saison en cours (depuis le ' + frDate(ov.period.start) + ', 3 minimum). Plus bas = mieux. ▲ = progression contre les 5 tours précédents de la saison.');
-    var ranked = ov.players.filter(function (p) { return p.rank !== null; }).sort(function (a, b) { return a.rank - b.rank; });
-    if (ranked.length) {
+    function numFr(v) {
+      if (v === null || v === undefined || v === '') return null;
+      var x = parseFloat(String(v).replace(',', '.').replace('+', ''));
+      return isFinite(x) ? x : null;
+    }
+    var rows = ov.players.map(function (p) {
+      var s = p.selection || {};
+      return { name: p.name, role: s.role, avg: numFr(s.avg), n: parseInt(s.retained, 10) || 0, ok: s.selectable === 'Oui' };
+    });
+    function byAvg(a, b) {
+      if (a.avg === null && b.avg === null) return b.n - a.n || a.name.localeCompare(b.name, 'fr');
+      if (a.avg === null) return 1;
+      if (b.avg === null) return -1;
+      return a.avg - b.avg || b.n - a.n || a.name.localeCompare(b.name, 'fr');
+    }
+    function group(title, hint, list) {
+      var c = card(title, hint);
+      if (!list.length) { c.appendChild(el('p', 'empty', 'Aucun joueur pour le moment.')); body.appendChild(c); return; }
       var tb = el('table', 'stats rank');
       var hr = el('tr');
-      ['#', 'Joueur', 'Forme', 'Évol.'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
+      ['#', 'Joueur', 'Moyenne', 'Tours'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
       tb.appendChild(hr);
-      ranked.forEach(function (p) {
+      var rank = 0;
+      list.sort(byAvg).forEach(function (r) {
         var tr = el('tr');
-        tr.appendChild(el('td', null, String(p.rank)));
+        tr.appendChild(el('td', null, r.avg === null ? '–' : String(++rank)));
         var tn = el('td', 'nm');
-        tn.appendChild(el('div', null, p.name));
-        if (p.selection && p.selection.role) { var rb = el('div'); rb.appendChild(roleBadge(p.selection.role, null, true)); tn.appendChild(rb); }
+        tn.appendChild(el('div', null, r.name));
+        if (r.role) { var rb = el('div'); rb.appendChild(roleBadge(r.role, null, true)); tn.appendChild(rb); }
         tr.appendChild(tn);
-        tr.appendChild(el('td', 'cur', signed(p.form.avg5)));
-        var te = el('td');
-        var tr2 = trendNode(p.form.trend);
-        te.appendChild(tr2 || document.createTextNode('–'));
-        tr.appendChild(te);
+        tr.appendChild(el('td', 'cur', r.avg === null ? '–' : signed(r.avg)));
+        tr.appendChild(el('td', null, String(r.n)));
         tb.appendChild(tr);
       });
       c.appendChild(tb);
-    } else c.appendChild(el('p', 'empty', 'Pas encore assez de tours de compétition.'));
-    body.appendChild(c);
-
-    var rest = ov.players.filter(function (p) { return p.rank === null; });
-    if (rest.length) {
-      var c2 = card('Pas assez de tours de compétition', 'Moins de 3 tours de compétition de la saison avec écart au SSS : pas de classement, moyenne indicative.');
-      var ul = el('ul', 'rounds');
-      rest.forEach(function (p) {
-        var li = el('li');
-        li.appendChild(el('div', 't', p.name));
-        var fa = p.form.avgAll;
-        li.appendChild(el('div', 'r', (fa === null || fa === undefined ? '' : 'Moyenne : ' + signed(fa) + ' au SSS · ') + p.form.nComp + ' tour' + (p.form.nComp > 1 ? 's' : '')));
-        ul.appendChild(li);
-      });
-      c2.appendChild(ul);
-      body.appendChild(c2);
+      body.appendChild(c);
     }
+    var since = ov.period && ov.period.start ? ' depuis le ' + frDate(ov.period.start) : '';
+    group('Sélectionnables', '5 tours retenus ou plus : le critère de sélection est rempli. Moyenne de l’écart au SSS sur les tours qui comptent (compétitions et tours annoncés' + since + '). Plus bas = mieux.',
+      rows.filter(function (r) { return r.ok; }));
+    group('Moins de 5 tours', 'Pas encore sélectionnables. Moyenne de l’écart au SSS sur les tours déjà joués' + since + ' : indicative, avec le nombre de tours qui comptent.',
+      rows.filter(function (r) { return !r.ok; }));
   }
 
   /* -- Calendrier -- */
