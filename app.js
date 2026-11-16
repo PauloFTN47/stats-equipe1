@@ -1543,33 +1543,40 @@
       if (b.avg === null) return -1;
       return a.avg - b.avg || b.n - a.n || a.name.localeCompare(b.name, 'fr');
     }
-    function group(title, hint, list) {
+    function group(title, hint, list, target) {
       var c = card(title, hint);
       if (!list.length) { c.appendChild(el('p', 'empty', 'Aucun joueur pour le moment.')); body.appendChild(c); return; }
-      var tb = el('table', 'stats rank');
-      var hr = el('tr');
-      ['#', 'Joueur', 'Moyenne', 'Tours'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
-      tb.appendChild(hr);
+      var ul = el('ul', 'rk');
       var rank = 0;
       list.sort(byAvg).forEach(function (r) {
-        var tr = el('tr');
-        tr.appendChild(el('td', null, r.avg === null ? '–' : String(++rank)));
-        var tn = el('td', 'nm');
-        tn.appendChild(el('div', null, r.name));
-        if (r.role) { var rb = el('div'); rb.appendChild(roleBadge(r.role, null, true)); tn.appendChild(rb); }
-        tr.appendChild(tn);
-        tr.appendChild(el('td', 'cur', r.avg === null ? '–' : signed(r.avg)));
-        tr.appendChild(el('td', null, String(r.n)));
-        tb.appendChild(tr);
+        var li = el('li');
+        var pos = r.avg === null ? 0 : ++rank;
+        li.appendChild(el('span', 'pos' + (!target && pos && pos <= 3 ? ' p' + pos : ''), pos ? String(pos) : '–'));
+        var who = el('div', 'who');
+        who.appendChild(el('b', null, r.name));
+        if (r.role) who.appendChild(roleBadge(r.role, null, true));
+        if (target) {
+          var pr = el('div', 'prog');
+          var bar = el('i');
+          bar.style.width = Math.min(100, Math.round(r.n / target * 100)) + '%';
+          pr.appendChild(bar);
+          who.appendChild(pr);
+        }
+        li.appendChild(who);
+        var sc = el('div', 'score');
+        sc.appendChild(el('span', r.avg === null ? 'none' : (r.avg <= 0 ? 'good' : 'bad'), r.avg === null ? '–' : signed(r.avg)));
+        sc.appendChild(el('small', null, target ? r.n + ' / ' + target + ' tours' : r.n + ' tour' + (r.n > 1 ? 's' : '')));
+        li.appendChild(sc);
+        ul.appendChild(li);
       });
-      c.appendChild(tb);
+      c.appendChild(ul);
       body.appendChild(c);
     }
     var since = ov.period && ov.period.start ? ' depuis le ' + frDate(ov.period.start) : '';
     group('Sélectionnables', '5 tours retenus ou plus : le critère de sélection est rempli. Moyenne de l’écart au SSS sur les tours qui comptent (compétitions et tours annoncés' + since + '). Plus bas = mieux.',
       rows.filter(function (r) { return r.ok; }));
-    group('Moins de 5 tours', 'Pas encore sélectionnables. Moyenne de l’écart au SSS sur les tours déjà joués' + since + ' : indicative, avec le nombre de tours qui comptent.',
-      rows.filter(function (r) { return !r.ok; }));
+    group('Moins de 5 tours', 'Pas encore sélectionnables. Moyenne de l’écart au SSS sur les tours déjà joués' + since + ' : indicative. La barre montre la progression vers les 5 tours.',
+      rows.filter(function (r) { return !r.ok; }), 5);
   }
 
   /* -- Calendrier -- */
