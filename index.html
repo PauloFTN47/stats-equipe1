@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=18">
+<link rel="stylesheet" href="styles.css?v=19">
 </head>
 <body>
 <main>
@@ -30,9 +30,9 @@
   <section id="screen-key" hidden>
     <img class="logo" src="icons/logo-256.png" alt="Casteljaloux Golf Club" width="128" height="128">
     <h1>Joueurs CASTEL</h1>
-    <p class="sub">Saisis la clé d'accès envoyée par le capitaine (8 caractères, à ne saisir qu'une fois).</p>
+    <p class="sub">Saisis la clé d’accès envoyée par le capitaine (8 caractères, à ne saisir qu’une fois).</p>
     <form id="key-form" class="card" novalidate autocomplete="off">
-      <label for="key-input">Clé d'accès</label>
+      <label for="key-input">Clé d’accès</label>
       <input id="key-input" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="8 caractères">
       <button type="submit" id="key-btn">Valider</button>
       <div class="msg" id="key-msg" role="alert" hidden></div>
@@ -59,7 +59,7 @@
   <section id="screen-staff-login" hidden>
     <img class="logo" src="icons/logo-256.png" alt="Casteljaloux Golf Club" width="128" height="128">
     <h1>Staff</h1>
-    <p class="sub">Connecte-toi avec ton identifiant staff et ton code staff (différent d'un code joueur).</p>
+    <p class="sub">Connecte-toi avec ton identifiant staff et ton code staff (différent d’un code joueur).</p>
     <form id="slogin-form" class="card" novalidate autocomplete="off">
       <label for="slogin-name">Identifiant staff</label>
       <select id="slogin-name" name="username" autocomplete="username" required></select>
@@ -68,7 +68,7 @@
       <button type="submit" id="slogin-btn">Se connecter</button>
       <div class="msg" id="slogin-msg" role="alert" hidden></div>
     </form>
-    <button type="button" class="link" id="back-player">Retour à l'accès joueur</button>
+    <button type="button" class="link" id="back-player">Retour à l’accès joueur</button>
   </section>
 
   <!-- Staff -->
@@ -102,7 +102,7 @@
       <img class="logo-sm" src="icons/logo-256.png" alt="" width="40" height="40">
       <div class="bar-id">
         <div class="who" id="who"></div>
-        <div class="sim" id="sim" hidden>Mode simulation : rien n'est écrit</div>
+        <div class="sim" id="sim" hidden>Mode simulation : rien n’est écrit</div>
       </div>
       <button type="button" class="link" id="logout">Changer</button>
     </header>
@@ -113,7 +113,7 @@
     </div>
 
     <div class="banner info" id="ios-hint" hidden>
-      <span>Pour l'installer : touche <strong>Partager</strong> puis <strong>Sur l'écran d'accueil</strong>.</span>
+      <span>Pour l’installer : touche <strong>Partager</strong> puis <strong>Sur l’écran d’accueil</strong>.</span>
       <button type="button" class="link" id="ios-hint-close">OK</button>
     </div>
 
@@ -150,11 +150,11 @@
           <label for="course">Parcours</label>
           <select id="course" required></select>
           <div id="other-box" hidden>
-            <label for="course-other">Nom du parcours <span class="hint">celui qui n'est pas dans la liste</span></label>
+            <label for="course-other">Nom du parcours <span class="hint">celui qui n’est pas dans la liste</span></label>
             <input id="course-other" type="text" maxlength="60" autocomplete="off">
             <label for="par">Par du parcours <span class="hint">écrit sur la carte de score</span></label>
             <input id="par" type="number" inputmode="numeric" min="60" max="80" step="1" value="72">
-            <p class="hint-line">Le capitaine ajoutera le SSS plus tard : l'écart au SSS se calculera alors tout seul.</p>
+            <p class="hint-line">Le capitaine ajoutera le SSS plus tard : l’écart au SSS se calculera alors tout seul.</p>
           </div>
         </fieldset>
 
@@ -197,7 +197,7 @@
           <p class="hint-line">Note chaque critère de 1 à 4 : <b>4</b> très bon · <b>3</b> bon · <b>2</b> moyen · <b>1</b> mauvais.</p>
           <div id="mental-list"></div>
           <div class="live" id="mental-live" aria-live="polite"></div>
-          <p class="hint-line">Ces notes servent à ton auto-évaluation : repérer la qualité mentale à travailler en premier. Elles sont confidentielles : seul le capitaine lit les notes individuelles. Le staff voit uniquement le critère le plus faible de l'équipe (à partir de 5 joueurs). Il n'y a aucun classement entre joueurs.</p>
+          <p class="hint-line">Ces notes servent à ton auto-évaluation : repérer la qualité mentale à travailler en premier. Elles sont confidentielles : seul le capitaine lit les notes individuelles. Le staff voit uniquement le critère le plus faible de l’équipe (à partir de 5 joueurs). Il n’y a aucun classement entre joueurs.</p>
         </fieldset>
 
         <fieldset>
@@ -224,7 +224,7 @@
   </section>
 
 </main>
-<script src="config.js?v=18"></script>
-<script src="app.js?v=18"></script>
+<script src="config.js?v=19"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>

@@ -1346,17 +1346,32 @@
       });
       c3.appendChild(blk);
     });
-    var cats = Object.keys(t.categories).sort(function (a, b) { return t.categories[b] - t.categories[a] || a.localeCompare(b, 'fr'); });
-    if (cats.length) {
-      c3.appendChild(el('p', 'focus', 'Catégories de joueur'));
-      cats.forEach(function (k) {
-        var who = ov.players.filter(function (p) { return (p.profile && p.profile.category || 'Peu d’informations') === k; }).map(function (p) { return p.name; });
-        var ln = el('div', 'axis-line');
-        ln.appendChild(el('span', catClass(k === 'Peu d’informations' ? null : k), k));
-        ln.appendChild(el('span', who.length ? '' : 'muted', who.join(', ')));
-        c3.appendChild(ln);
+    c3.appendChild(el('p', 'focus', 'Points forts et points faibles par joueur'));
+    ov.players.map(function (p, i) { return { p: p, i: i }; }).sort(function (a, b) {
+      return roleRank(a.p.selection && a.p.selection.role) - roleRank(b.p.selection && b.p.selection.role) || a.i - b.i;
+    }).forEach(function (x) {
+      var p = x.p;
+      var forts = [], faibles = [];
+      ['dep', 'app', 'put', 'chip'].forEach(function (k) {
+        var a = p.profile && p.profile.axes && p.profile.axes[k];
+        if (!a) return;
+        if (a.level === 'fort') forts.push(a.label);
+        else if (a.level === 'faible') faibles.push(a.label);
       });
-    }
+      var row = el('div', 'axis');
+      var hd = el('div', 'axis-head');
+      hd.appendChild(el('b', null, p.name));
+      if (p.selection && p.selection.role) hd.appendChild(roleBadge(p.selection.role, null, true));
+      row.appendChild(hd);
+      var known = p.profile && p.profile.category;
+      [['Forts', forts, 'ok'], ['Faibles', faibles, 'wait']].forEach(function (g) {
+        var ln = el('div', 'axis-line');
+        ln.appendChild(el('span', 'badge ' + g[2], g[0]));
+        ln.appendChild(el('span', g[1].length ? '' : 'muted', g[1].length ? g[1].join(', ') : (known ? 'aucun' : 'peu d’informations')));
+        row.appendChild(ln);
+      });
+      c3.appendChild(row);
+    });
     c3.appendChild(el('p', 'hint small', 'Profil calculé sur les 12 derniers tours avec statistiques complètes. Provisoire en dessous de 8 tours, non classé en dessous de 4. Fort à +0,5 écart-type ou plus, faible à −0,5 ou moins.'));
     body.appendChild(c3);
 
