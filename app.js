@@ -6,7 +6,7 @@
   var K = { key: 'stats.key', init: 'stats.init', session: 'stats.session', queue: 'stats.queue', recent: 'stats.recent', hint: 'stats.hint', space: 'stats.space', cal: 'stats.cal', staff: 'stats.staff', sov: 'stats.sov', scal: 'stats.scal' };
   var OTHER = '__autre__';   // valeur de l'option « Autre parcours »
   var TYPES = { 1: 'Compétition', 2: 'Tour annoncé', 3: 'Entraînement (non compté)' };
-  var state = { data: null, session: null, armed: false, flushing: false, calFilter: 'all', spaceView: 'match', spaceData: null };
+  var state = { data: null, session: null, armed: false, flushing: false, calFilter: 'all', spaceView: 'match', spaceData: null, detailView: 'match' };
 
   function $(id) { return document.getElementById(id); }
   function load(k, fallback) { try { var v = window.localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
@@ -284,7 +284,7 @@
       seg.appendChild(b);
     });
     body.appendChild(seg);
-    if (state.spaceView === 'training') { renderTraining(body, d); return; }
+    if (state.spaceView === 'training') { renderTraining(body, d, false); return; }
     if (d.team) body.appendChild(teamCard(d.team, d.season));
     body.appendChild(averagesCard(d.seasons || [], d.last3));
     if (d.mental) body.appendChild(mentalCard(d.mental));
@@ -298,17 +298,17 @@
   }
 
   /** Vue « Entraînement » de Mon espace : moyennes des tours de type 3 (non comptés dans les moyennes de match), mental d'entraînement, derniers entraînements. */
-  function renderTraining(body, d) {
+  function renderTraining(body, d, staff) {
     var t = d.training;
     if (!t) {
       var none = card('Entraînement');
-      none.appendChild(el('p', 'empty', 'Les statistiques d’entraînement ne sont pas encore disponibles. Réessaie dans un instant.'));
+      none.appendChild(el('p', 'empty', staff ? 'Les statistiques d’entraînement ne sont pas disponibles pour ce joueur.' : 'Les statistiques d’entraînement ne sont pas encore disponibles. Réessaie dans un instant.'));
       body.appendChild(none);
       return;
     }
-    var c = card('Mes stats à l’entraînement', 'Tous les tours saisis en type « Entraînement ». Ils ne comptent pas dans tes moyennes de compétition ni dans la sélection.');
+    var c = card(staff ? 'Stats à l’entraînement' : 'Mes stats à l’entraînement', staff ? 'Tous les tours saisis en type « Entraînement ». Ils ne comptent pas dans les moyennes de compétition ni dans la sélection.' : 'Tous les tours saisis en type « Entraînement ». Ils ne comptent pas dans tes moyennes de compétition ni dans la sélection.');
     if (!t.n) {
-      c.appendChild(el('p', 'empty', 'Aucun tour d’entraînement saisi pour le moment. Dans l’onglet Saisir, choisis « Entraînement ».'));
+      c.appendChild(el('p', 'empty', staff ? 'Aucun tour d’entraînement saisi par ce joueur.' : 'Aucun tour d’entraînement saisi pour le moment. Dans l’onglet Saisir, choisis « Tour d’entraînement ».'));
     } else {
       var dl = el('dl', 'kv');
       [['Tours', String(t.n)], ['Fairways', pct(t.fairways)], ['Greens en régul.', pct(t.greens)], ['Putts par tour', num(t.putts, 1)],
@@ -318,11 +318,11 @@
         dl.appendChild(el('dd', null, r[1]));
       });
       c.appendChild(dl);
-      c.appendChild(el('p', 'hint small', 'Moyennes sur tous tes tours d’entraînement saisis. TRP = putts réels ÷ putts attendus (sous 1,00 : bon putting).'));
+      c.appendChild(el('p', 'hint small', 'Moyennes sur tous les tours d’entraînement saisis. TRP = putts réels ÷ putts attendus (sous 1,00 : bon putting).'));
     }
     body.appendChild(c);
     if (d.mental && d.mental.training && d.mental.training.n) body.appendChild(mentalCard({ training: d.mental.training }));
-    var c2 = card('Mes derniers entraînements', 'Touche un tour pour voir ses statistiques.');
+    var c2 = card(staff ? 'Derniers entraînements' : 'Mes derniers entraînements', 'Touche un tour pour voir ses statistiques.');
     c2.appendChild(roundsList(t.recent || [], 'Aucun entraînement enregistré pour le moment.'));
     body.appendChild(c2);
   }
@@ -1449,9 +1449,19 @@
 
     if (!d) { body.appendChild(el('p', 'empty', 'Chargement de la fiche…')); return; }
     var sp = d.space || {};
+    var seg = el('div', 'seg');
+    [['match', 'Compétitions'], ['training', 'Entraînement']].forEach(function (o) {
+      var b = el('button', null, o[1]);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(state.detailView === o[0]));
+      b.addEventListener('click', function () { state.detailView = o[0]; renderDetail(name); });
+      seg.appendChild(b);
+    });
+    body.appendChild(seg);
+    if (state.detailView === 'training') { renderTraining(body, sp, true); return; }
     body.appendChild(averagesCard(sp.seasons || [], sp.last3));
     appendCharts(body, sp.charts || {});
-    var rc = card('Derniers tours');
+    var rc = card('Derniers tours', 'Touche un tour pour voir ses statistiques.');
     rc.appendChild(roundsList(sp.recent || []));
     body.appendChild(rc);
   }
