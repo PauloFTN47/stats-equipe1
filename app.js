@@ -617,6 +617,101 @@
 
   var FIELDS = ['date', 'type', 'name', 'course', 'course-other', 'par', 'strokes', 'fairways', 'greens', 'putts', 'chipMade', 'chipTried', 'comment'];
 
+  /* ---------- Mental : auto-évaluation (5 critères notés de 1 à 4) ---------- */
+
+  var MENTAL_ALERT = 15;   // après un match : total inférieur à 15 = alerte ; aucun seuil pour l'entraînement
+  var MENTAL = {
+    match: {
+      sub: 'après un match',
+      items: [
+        ['Me conditionner avant le match', 'Je me prépare pour avoir plus de chances de bien débuter.'],
+        ['Bien (mal) jouer', 'Je joue bien même quand je ne suis pas à mon meilleur niveau.'],
+        ['Ne pas lâcher', 'Je reste constant, je tiens ma tête, je fais peu de fautes.'],
+        ['Sentir ce qui se passe', 'Je perçois ce qui se passe chez l’adversaire et en moi, je reconnais les temps forts et faibles, je suis malin.'],
+        ['Dominer mes peurs', 'Dans les moments tendus, je domine mes peurs pour continuer d’attaquer.']
+      ]
+    },
+    training: {
+      sub: 'après un entraînement',
+      items: [
+        ['Me préparer à me concentrer', 'Sac, nourriture, mise en condition.'],
+        ['Traiter l’entraînement comme un match', 'Très concentré et engagé, je pousse mes limites quand c’est dur.'],
+        ['Régler mon problème de caractère', 'Nervosité ou découragement devant l’effort.'],
+        ['Être en relation avec mon coach', 'J’apporte des idées, je prends des initiatives, j’écoute bien.'],
+        ['Tenir sur la longueur', 'Je tiens la durée de la séance et mon engagement dans le temps.']
+      ]
+    }
+  };
+  var mentalNotes = { match: [0, 0, 0, 0, 0], training: [0, 0, 0, 0, 0] };
+
+  /** Type 3 (entraînement) = grille entraînement ; types 1 et 2 = grille match. Même règle que le serveur. */
+  function mentalKind(type) { return Number(type) === 3 ? 'training' : 'match'; }
+
+  /** Total /20, zone (match seulement), critère(s) à travailler = note la plus basse, ex aequo compris. */
+  function mentalScore(type, notes) {
+    var kind = mentalKind(type);
+    var total = notes.reduce(function (a, b) { return a + b; }, 0);
+    var min = Math.min.apply(null, notes);
+    var allEqual = notes.every(function (n) { return n === notes[0]; });
+    var work = allEqual ? [] : MENTAL[kind].items.filter(function (it, i) { return notes[i] === min; }).map(function (it) { return it[0]; });
+    var zone = kind === 'match' ? (total < MENTAL_ALERT ? 'Alerte' : 'Zone solide') : '';
+    return { kind: kind, total: total, zone: zone, work: work };
+  }
+
+  function mentalText(s) {
+    var t = 'Total ' + s.total + '/20' + (s.zone ? ' · ' + s.zone.toLowerCase() : '');
+    if (s.work.length) t += ' · à travailler en premier : ' + s.work.join(', ');
+    else t += ' · notes identiques, aucun critère ne ressort';
+    return t;
+  }
+
+  function renderMental() {
+    var kind = mentalKind($('type').value);
+    var notes = mentalNotes[kind];
+    $('mental-sub').textContent = MENTAL[kind].sub;
+    var list = $('mental-list');
+    list.textContent = '';
+    MENTAL[kind].items.forEach(function (it, i) {
+      var box = document.createElement('div');
+      box.className = 'crit';
+      var t = document.createElement('div');
+      t.className = 'crit-t';
+      t.textContent = (i + 1) + '. ' + it[0];
+      var d = document.createElement('div');
+      d.className = 'hint';
+      d.textContent = it[1];
+      var g = document.createElement('div');
+      g.className = 'rate';
+      g.setAttribute('role', 'radiogroup');
+      g.setAttribute('aria-label', it[0]);
+      [1, 2, 3, 4].forEach(function (n) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = String(n);
+        b.setAttribute('role', 'radio');
+        b.setAttribute('aria-checked', String(notes[i] === n));
+        b.addEventListener('click', function () {
+          notes[i] = n;
+          Array.prototype.forEach.call(g.children, function (c, k) { c.setAttribute('aria-checked', String(k + 1 === n)); });
+          disarm(); hideMsg('msg');
+          updateMentalLive();
+        });
+        g.appendChild(b);
+      });
+      box.appendChild(t); box.appendChild(d); box.appendChild(g);
+      list.appendChild(box);
+    });
+    updateMentalLive();
+  }
+
+  function updateMentalLive() {
+    var notes = mentalNotes[mentalKind($('type').value)];
+    var done = notes.every(function (n) { return n > 0; });
+    $('mental-live').textContent = done
+      ? mentalText(mentalScore($('type').value, notes))
+      : notes.filter(function (n) { return n > 0; }).length + '/5 critères notés';
+  }
+
   function val(id) { return $(id).value.trim(); }
 
   function intField(id, min, max, label, required) {
@@ -647,6 +742,9 @@
       p.courseOther = val('course-other');
       p.par = intField('par', 60, 80, 'Par du parcours', true);
     }
+    var mn = mentalNotes[mentalKind(p.type)];
+    if (!mn.every(function (v) { return v >= 1 && v <= 4; })) throw new Error('Mental : note les 5 critères de 1 à 4.');
+    p.mental = mn.slice();
     var n = [p.fairways, p.greens, p.putts].filter(function (v) { return v !== ''; }).length;
     if (n !== 0 && n !== 3) throw new Error('Fairways, greens et putts vont ensemble : renseigne les trois ou aucun.');
     if ((p.chipMade === '') !== (p.chipTried === '')) throw new Error('Chip-putts : renseigne les réussis et les tentés, ou aucun des deux.');
@@ -684,6 +782,7 @@
     ];
     if (p.fairways !== '') rows.push(['Stats', 'Fairways ' + p.fairways + '/14 · Greens ' + p.greens + '/18 · Putts ' + p.putts]);
     if (p.chipTried !== '') rows.push(['Chip-putts', p.chipMade + '/' + p.chipTried]);
+    if (p.mental) rows.push(['Mental', mentalText(mentalScore(p.type, p.mental))]);
     if (p.comment) rows.push(['Commentaire', p.comment]);
     var dl = document.createElement('dl');
     rows.forEach(function (r) {
@@ -703,6 +802,8 @@
 
   function clearForm() {
     ['name', 'course-other', 'strokes', 'fairways', 'greens', 'putts', 'chipMade', 'chipTried', 'comment'].forEach(function (id) { $(id).value = ''; });
+    mentalNotes = { match: [0, 0, 0, 0, 0], training: [0, 0, 0, 0, 0] };
+    renderMental();
     updateLive();
   }
 
@@ -710,6 +811,7 @@
     $(id).addEventListener('input', function () { disarm(); hideMsg('msg'); updateLive(); });
     $(id).addEventListener('change', function () { disarm(); updateLive(); });
   });
+  $('type').addEventListener('change', renderMental);
   $('edit').addEventListener('click', disarm);
 
   $('form').addEventListener('submit', async function (ev) {
@@ -741,6 +843,8 @@
         var txt = SIM
           ? 'Simulation réussie, rien n’a été écrit. Écart au SSS : ' + ec + (res.trp ? ' · TRP : ' + res.trp : '') + ' · ligne prévue : ' + res.row + '.'
           : 'Enregistré. Écart au SSS : ' + ec + (res.trp ? ' · TRP : ' + res.trp : '') + (res.conv ? ' · Conv. green : ' + res.conv : '') + '.';
+        if (res.mental) txt += ' Mental : ' + mentalText(res.mental) + '.';
+        if (!SIM && res.mental && res.mentalSaved === false) txt += ' Les notes mentales n’ont pas pu être enregistrées : préviens le capitaine.';
         if (!SIM && res.remaining <= 5) txt += ' Il te reste ' + res.remaining + ' ligne(s) dans ta fiche : préviens le capitaine.';
         setMsg('msg', txt, 'ok');
         clearForm();
@@ -835,6 +939,8 @@
   $('ios-hint-close').addEventListener('click', function () { save(K.hint, true); $('ios-hint').hidden = true; });
 
   /* ---------- Lancement ---------- */
+
+  renderMental();
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { /* sans cache hors ligne */ }); });
