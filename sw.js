@@ -1,7 +1,7 @@
 // Service worker : met l'appli en cache pour qu'elle s'ouvre sans réseau.
 // Les appels à l'API Apps Script ne passent jamais par le cache.
 // Pour publier une nouvelle version de l'appli, changer le numéro ci-dessous.
-var VERSION = 'stats-castel-v1';
+var VERSION = 'stats-castel-v2';
 var SHELL = [
   './',
   'index.html',
@@ -11,7 +11,8 @@ var SHELL = [
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
-  'icons/apple-touch-icon.png'
+  'icons/apple-touch-icon.png',
+  'icons/logo-256.png'
 ];
 
 self.addEventListener('install', function (event) {
