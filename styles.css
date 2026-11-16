@@ -214,3 +214,11 @@ table.rank th:nth-child(2) { text-align: left; }
 .mdet { margin-bottom: 8px; padding: 12px 14px; }
 .mdet summary { display: flex; justify-content: space-between; gap: 8px; cursor: pointer; }
 .card > .secondary, #s-players-body > .secondary { margin: 0 0 12px; }
+
+/* Tours cliquables (détail d'un tour) */
+.rounds li.tap { display: block; padding: 0; }
+.rbtn { display: flex; justify-content: space-between; gap: 12px; width: 100%; margin: 0; padding: 10px 0; min-height: 0; background: transparent; color: inherit; border: 0; border-radius: 0; font-weight: 400; text-align: left; }
+.rbtn[aria-expanded="true"] { background: var(--soft); border-radius: 8px; padding-left: 8px; padding-right: 8px; }
+.rdetail { padding: 6px 8px 12px; }
+.rdetail .kv { margin-top: 0; }
+table.stats th { font-size: .8rem; }

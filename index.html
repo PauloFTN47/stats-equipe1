@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=10">
+<link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body>
 <main>
@@ -127,21 +127,25 @@
       <form id="form" class="card" novalidate autocomplete="off">
         <fieldset>
           <legend>Le tour</legend>
+          <div class="seg" id="mode-seg" role="group" aria-label="Match ou entraînement">
+            <button type="button" id="mode-match" aria-pressed="true">Match</button>
+            <button type="button" id="mode-training" aria-pressed="false">Tour d’entraînement</button>
+          </div>
+          <p class="hint-line" id="mode-hint" hidden>Un tour d’entraînement ne compte ni dans tes moyennes de match ni dans la sélection. Tu le retrouves dans Mon espace, bouton « Entraînement ».</p>
           <div class="grid">
             <div>
               <label for="date">Date</label>
               <input id="date" type="date" required>
             </div>
-            <div>
+            <div id="type-box">
               <label for="type">Type</label>
               <select id="type">
                 <option value="1">1 · Compétition</option>
                 <option value="2">2 · Tour annoncé</option>
-                <option value="3">3 · Entraînement</option>
               </select>
             </div>
           </div>
-          <label for="name">Nom du tour <span class="hint">ex. Championnat du club T1</span></label>
+          <label for="name">Nom du tour <span class="hint" id="name-hint">ex. Championnat du club T1</span></label>
           <input id="name" type="text" maxlength="60" required>
           <label for="course">Parcours</label>
           <select id="course" required></select>
@@ -220,7 +224,7 @@
   </section>
 
 </main>
-<script src="config.js?v=10"></script>
-<script src="app.js?v=10"></script>
+<script src="config.js?v=11"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>

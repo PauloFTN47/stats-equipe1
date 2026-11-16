@@ -6,7 +6,7 @@
   var K = { key: 'stats.key', init: 'stats.init', session: 'stats.session', queue: 'stats.queue', recent: 'stats.recent', hint: 'stats.hint', space: 'stats.space', cal: 'stats.cal', staff: 'stats.staff', sov: 'stats.sov', scal: 'stats.scal' };
   var OTHER = '__autre__';   // valeur de l'option « Autre parcours »
   var TYPES = { 1: 'Compétition', 2: 'Tour annoncé', 3: 'Entraînement (non compté)' };
-  var state = { data: null, session: null, armed: false, flushing: false, calFilter: 'all' };
+  var state = { data: null, session: null, armed: false, flushing: false, calFilter: 'all', spaceView: 'match', spaceData: null };
 
   function $(id) { return document.getElementById(id); }
   function load(k, fallback) { try { var v = window.localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
@@ -272,18 +272,59 @@
   }
 
   function renderSpace(d) {
+    state.spaceData = d;
     var body = $('space-body');
     body.textContent = '';
+    var seg = el('div', 'seg');
+    [['match', 'Mes matchs'], ['training', 'Entraînement']].forEach(function (o) {
+      var b = el('button', null, o[1]);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(state.spaceView === o[0]));
+      b.addEventListener('click', function () { state.spaceView = o[0]; renderSpace(state.spaceData); });
+      seg.appendChild(b);
+    });
+    body.appendChild(seg);
+    if (state.spaceView === 'training') { renderTraining(body, d); return; }
     if (d.team) body.appendChild(teamCard(d.team, d.season));
-    body.appendChild(averagesCard(d.seasons || []));
+    body.appendChild(averagesCard(d.seasons || [], d.last3));
     if (d.mental) body.appendChild(mentalCard(d.mental));
 
     appendCharts(body, d.charts || {});
 
-    var c4 = card('Mes derniers tours');
+    var c4 = card('Mes derniers tours', 'Touche un tour pour voir ses statistiques.');
     c4.appendChild(roundsList(d.recent || []));
     c4.appendChild(el('p', 'hint small', 'Lecture seule. Pour corriger un tour, préviens le capitaine.'));
     body.appendChild(c4);
+  }
+
+  /** Vue « Entraînement » de Mon espace : moyennes des tours de type 3 (non comptés dans les moyennes de match), mental d'entraînement, derniers entraînements. */
+  function renderTraining(body, d) {
+    var t = d.training;
+    if (!t) {
+      var none = card('Entraînement');
+      none.appendChild(el('p', 'empty', 'Les statistiques d’entraînement ne sont pas encore disponibles. Réessaie dans un instant.'));
+      body.appendChild(none);
+      return;
+    }
+    var c = card('Mes stats à l’entraînement', 'Tous les tours saisis en type « Entraînement ». Ils ne comptent pas dans tes moyennes de match ni dans la sélection.');
+    if (!t.n) {
+      c.appendChild(el('p', 'empty', 'Aucun tour d’entraînement saisi pour le moment. Dans l’onglet Saisir, choisis « Entraînement ».'));
+    } else {
+      var dl = el('dl', 'kv');
+      [['Tours', String(t.n)], ['Fairways', pct(t.fairways)], ['Greens en régul.', pct(t.greens)], ['Putts par tour', num(t.putts, 1)],
+       ['Chip-putts réussis', pct(t.chip)], ['TRP', num(t.trp, 2)], ['Conv. green', num(t.conv, 2)],
+       ['Écart au SSS', (t.ecart === null || t.ecart === undefined) ? '–' : signed(t.ecart)]].forEach(function (r) {
+        dl.appendChild(el('dt', null, r[0]));
+        dl.appendChild(el('dd', null, r[1]));
+      });
+      c.appendChild(dl);
+      c.appendChild(el('p', 'hint small', 'Moyennes sur tous tes tours d’entraînement saisis. TRP = putts réels ÷ putts attendus (sous 1,00 : bon putting).'));
+    }
+    body.appendChild(c);
+    if (d.mental && d.mental.training && d.mental.training.n) body.appendChild(mentalCard({ training: d.mental.training }));
+    var c2 = card('Mes derniers entraînements', 'Touche un tour pour voir ses statistiques.');
+    c2.appendChild(roundsList(t.recent || [], 'Aucun entraînement enregistré pour le moment.'));
+    body.appendChild(c2);
   }
 
   function appendCharts(body, ch) {
@@ -330,7 +371,7 @@
     return c;
   }
 
-  function averagesCard(seasons) {
+  function averagesCard(seasons, last3) {
     var c = card('Mes moyennes', 'Compétitions et tours annoncés (les entraînements ne comptent pas).');
     var cur = seasons[1] || {}, prev = seasons[0] || {};
     var t = el('table', 'stats');
@@ -338,6 +379,7 @@
     head.appendChild(el('th', null, ''));
     head.appendChild(el('th', null, prev.label || ''));
     head.appendChild(el('th', 'cur', cur.label || ''));
+    if (last3) head.appendChild(el('th', null, '3 dernières cartes'));
     t.appendChild(head);
     var rows = [
       ['Tours', function (s) { return s.n === undefined ? '–' : String(s.n); }],
@@ -354,6 +396,7 @@
       tr.appendChild(el('th', null, r[0]));
       tr.appendChild(el('td', null, r[1](prev)));
       tr.appendChild(el('td', 'cur', r[1](cur)));
+      if (last3) tr.appendChild(el('td', null, r[1](last3)));
       t.appendChild(tr);
     });
     c.appendChild(t);
@@ -387,7 +430,7 @@
           row.appendChild(el('div', 'mv', num(a, 2)));
           sec.appendChild(row);
         });
-        var line = 'Total moyen : ' + num(d.total, 1) + '/20' + (k[0] === 'match' ? ' (alerte sous ' + MENTAL_ALERT + ')' : '');
+        var line = 'Total moyen : ' + num(d.total, 1) + '/' + mentalMax(k[0]) + (k[0] === 'match' ? ' (alerte sous ' + MENTAL_ALERT + ')' : '');
         sec.appendChild(el('p', 'hint small', line));
         if (d.weakest && d.weakest.length) {
           var w = el('p', 'focus');
@@ -404,7 +447,7 @@
         var left = el('div');
         left.appendChild(el('div', 't', h.name));
         left.appendChild(el('div', 's', String(h.date || '').split('-').reverse().join('/') + (h.work && h.work.length ? ' · à travailler : ' + h.work.join(', ') : '')));
-        var right = el('div', 'r', h.total + '/20');
+        var right = el('div', 'r', h.total + '/' + mentalMax(k[0]));
         if (h.zone) right.appendChild(el('small', null, h.zone));
         li.appendChild(left); li.appendChild(right);
         ul.appendChild(li);
@@ -416,17 +459,56 @@
     return c;
   }
 
-  function roundsList(list) {
+  var ROUND_TYPES = { 1: 'Compétition', 2: 'Tour annoncé', 3: 'Entraînement' };
+
+  /** « 9/14 » -> « 9/14 (64 %) » ; vide -> tiret. */
+  function ratioShow(s) {
+    var m = /^(\d+)\/(\d+)$/.exec(String(s === undefined || s === null ? '' : s));
+    if (!m) return s ? String(s) : '–';
+    return m[1] + '/' + m[2] + (Number(m[2]) ? ' (' + Math.round(Number(m[1]) / Number(m[2]) * 100) + ' %)' : '');
+  }
+
+  /** Détail d'un tour : tout ce que l'API renvoie pour la ligne de la fiche (texte inséré par textContent). */
+  function roundDetail(t) {
+    var box = el('div', 'rdetail');
+    var dl = el('dl', 'kv');
+    var rows = [['Type', ROUND_TYPES[Number(t.type)] || '–'], ['Parcours', t.course || '–'], ['Score au par', signedInt(t.score)], ['Écart au SSS', t.ecart || '–']];
+    if (t.fairways !== undefined) {
+      rows.push(['Fairways', ratioShow(t.fairways)], ['Greens en régul.', ratioShow(t.greens)], ['Putts', t.putts || '–'],
+        ['Chip-putts réussis', ratioShow(t.chip)], ['TRP', t.trp || '–'], ['Conv. green', t.conv || '–']);
+    } else if (t.trp) {
+      rows.push(['TRP', t.trp]);
+    }
+    rows.forEach(function (r) { dl.appendChild(el('dt', null, r[0])); dl.appendChild(el('dd', null, String(r[1]))); });
+    box.appendChild(dl);
+    if (t.comment) box.appendChild(el('p', 'hint small', 'Commentaire : ' + t.comment));
+    if (t.fairways === undefined) box.appendChild(el('p', 'hint small', 'Le détail complet du tour n’est pas encore disponible.'));
+    return box;
+  }
+
+  function roundsList(list, emptyText) {
     var ul = el('ul', 'rounds');
-    if (!list || !list.length) { ul.appendChild(el('li', null, 'Aucun tour enregistré pour le moment.')); return ul; }
+    if (!list || !list.length) { ul.appendChild(el('li', null, emptyText || 'Aucun tour enregistré pour le moment.')); return ul; }
     list.forEach(function (t) {
-      var li = el('li');
+      var li = el('li', 'tap');
+      var btn = el('button', 'rbtn');
+      btn.type = 'button';
+      btn.setAttribute('aria-expanded', 'false');
       var left = el('div');
       left.appendChild(el('div', 't', t.name));
       left.appendChild(el('div', 's', (t.date || 'Saison 2026') + ' · ' + t.course));
       var right = el('div', 'r', signedInt(t.score));
       right.appendChild(el('small', null, 'SSS ' + (t.ecart || '-') + (t.trp ? ' · TRP ' + t.trp : '')));
-      li.appendChild(left); li.appendChild(right);
+      btn.appendChild(left); btn.appendChild(right);
+      var detail = null;
+      btn.addEventListener('click', function () {
+        var open = btn.getAttribute('aria-expanded') === 'true';
+        if (open) { detail.hidden = true; btn.setAttribute('aria-expanded', 'false'); return; }
+        if (!detail) { detail = roundDetail(t); li.appendChild(detail); }
+        detail.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+      });
+      li.appendChild(btn);
       ul.appendChild(li);
     });
     return ul;
@@ -682,7 +764,7 @@
 
   /* ---------- Mental : auto-évaluation (5 critères notés de 1 à 4) ---------- */
 
-  var MENTAL_ALERT = 15;   // après un match : total inférieur à 15 = alerte ; aucun seuil pour l'entraînement
+  var MENTAL_ALERT = 12;   // après un match (4 critères, total sur 16) : total inférieur à 12 = alerte ; aucun seuil pour l'entraînement
   var MENTAL = {
     match: {
       sub: 'après un match',
@@ -690,7 +772,6 @@
         ['Évaluation de ma préparation', 'Échauffement, routine, matériel, repas et eau, état d’esprit au départ : étais-je prêt à bien débuter ? 4 = prêt et en confiance dès le trou 1. 1 = parti à froid ou dans le flou.'],
         ['Bien (mal) jouer', 'Ma qualité de jeu quand je ne suis pas à mon meilleur niveau. 4 = même sans mes meilleurs coups, j’ai trouvé comment scorer (jeu simplifié, bonnes décisions, erreurs limitées). 1 = j’ai subi mon mauvais jeu et il s’est aggravé.'],
         ['Ne pas lâcher', 'Ma constance du trou 1 au trou 18. 4 = même concentration et même routine jusqu’au bout, jamais abattu après un mauvais trou. 1 = relâché ou résigné après une erreur, fin de tour bâclée.'],
-        ['Sentir ce qui se passe', 'Je perçois ce qui se passe chez l’adversaire et en moi, je reconnais les temps forts et faibles, je suis malin.'],
         ['Dominer mes peurs', 'Ai-je réussi les coups importants (drive étroit, putt important à 1,20 m, coup décisif) ? 4 = je les ai réussis en attaquant malgré la pression. 1 = je les ai évités, subis ou ratés en me crispant.']
       ]
     },
@@ -705,10 +786,14 @@
       ]
     }
   };
-  var mentalNotes = { match: [0, 0, 0, 0, 0], training: [0, 0, 0, 0, 0] };
+  var mentalNotes = { match: [0, 0, 0, 0], training: [0, 0, 0, 0, 0] };
+  function mentalMax(kind) { return MENTAL[kind].items.length * 4; }   // match : 16, entraînement : 20
 
   /** Type 3 (entraînement) = grille entraînement ; types 1 et 2 = grille match. Même règle que le serveur. */
   function mentalKind(type) { return Number(type) === 3 ? 'training' : 'match'; }
+
+  /** Type du tour saisi : 3 en mode « Tour d'entraînement », sinon la valeur du sélecteur (1 compétition, 2 tour annoncé). */
+  function roundType() { return state.mode === 'training' ? 3 : Number($('type').value); }
 
   /** Total /20, zone (match seulement), critère(s) à travailler = note la plus basse, ex aequo compris. */
   function mentalScore(type, notes) {
@@ -718,18 +803,18 @@
     var allEqual = notes.every(function (n) { return n === notes[0]; });
     var work = allEqual ? [] : MENTAL[kind].items.filter(function (it, i) { return notes[i] === min; }).map(function (it) { return it[0]; });
     var zone = kind === 'match' ? (total < MENTAL_ALERT ? 'Alerte' : 'Zone solide') : '';
-    return { kind: kind, total: total, zone: zone, work: work };
+    return { kind: kind, total: total, max: mentalMax(kind), zone: zone, work: work };
   }
 
   function mentalText(s) {
-    var t = 'Total ' + s.total + '/20' + (s.zone ? ' · ' + s.zone.toLowerCase() : '');
+    var t = 'Total ' + s.total + '/' + (s.max || mentalMax(s.kind)) + (s.zone ? ' · ' + s.zone.toLowerCase() : '');
     if (s.work.length) t += ' · à travailler en premier : ' + s.work.join(', ');
     else t += ' · notes identiques, aucun critère ne ressort';
     return t;
   }
 
   function renderMental() {
-    var kind = mentalKind($('type').value);
+    var kind = mentalKind(roundType());
     var notes = mentalNotes[kind];
     $('mental-sub').textContent = MENTAL[kind].sub;
     var list = $('mental-list');
@@ -768,11 +853,11 @@
   }
 
   function updateMentalLive() {
-    var notes = mentalNotes[mentalKind($('type').value)];
+    var notes = mentalNotes[mentalKind(roundType())];
     var done = notes.every(function (n) { return n > 0; });
     $('mental-live').textContent = done
-      ? mentalText(mentalScore($('type').value, notes))
-      : notes.filter(function (n) { return n > 0; }).length + '/5 critères notés';
+      ? mentalText(mentalScore(roundType(), notes))
+      : notes.filter(function (n) { return n > 0; }).length + '/' + notes.length + ' critères notés';
   }
 
   function val(id) { return $(id).value.trim(); }
@@ -792,7 +877,7 @@
     var isOther = val('course') === OTHER;
     if (isOther && !val('course-other')) throw new Error('Parcours hors liste : indique le nom du parcours.');
     var p = {
-      date: val('date'), type: Number(val('type')), name: val('name'), course: val('course'),
+      date: val('date'), type: roundType(), name: val('name'), course: val('course'),
       strokes: intField('strokes', 50, 130, 'Score brut', true),
       fairways: intField('fairways', 0, 14, 'Fairways', false),
       greens: intField('greens', 0, 18, 'Greens', false),
@@ -806,7 +891,7 @@
       p.par = intField('par', 60, 80, 'Par du parcours', true);
     }
     var mn = mentalNotes[mentalKind(p.type)];
-    if (!mn.every(function (v) { return v >= 1 && v <= 4; })) throw new Error('Mental : note les 5 critères de 1 à 4.');
+    if (!mn.every(function (v) { return v >= 1 && v <= 4; })) throw new Error('Mental : note les ' + mn.length + ' critères de 1 à 4.');
     p.mental = mn.slice();
     var n = [p.fairways, p.greens, p.putts].filter(function (v) { return v !== ''; }).length;
     if (n !== 0 && n !== 3) throw new Error('Fairways, greens et putts vont ensemble : renseigne les trois ou aucun.');
@@ -865,7 +950,7 @@
 
   function clearForm() {
     ['name', 'course-other', 'strokes', 'fairways', 'greens', 'putts', 'chipMade', 'chipTried', 'comment'].forEach(function (id) { $(id).value = ''; });
-    mentalNotes = { match: [0, 0, 0, 0, 0], training: [0, 0, 0, 0, 0] };
+    mentalNotes = { match: [0, 0, 0, 0], training: [0, 0, 0, 0, 0] };
     renderMental();
     updateLive();
   }
@@ -875,6 +960,21 @@
     $(id).addEventListener('change', function () { disarm(); updateLive(); });
   });
   $('type').addEventListener('change', renderMental);
+
+  /** Bascule Match / Tour d'entraînement dans Saisir : le tour d'entraînement est de type 3 (grille mentale d'entraînement). */
+  state.mode = 'match';
+  function setMode(mode) {
+    state.mode = mode;
+    $('mode-match').setAttribute('aria-pressed', String(mode === 'match'));
+    $('mode-training').setAttribute('aria-pressed', String(mode === 'training'));
+    $('type-box').hidden = mode === 'training';
+    $('mode-hint').hidden = mode !== 'training';
+    $('name-hint').textContent = mode === 'training' ? 'ex. Practice putting, 9 trous' : 'ex. Championnat du club T1';
+    disarm(); hideMsg('msg');
+    renderMental();
+  }
+  $('mode-match').addEventListener('click', function () { setMode('match'); });
+  $('mode-training').addEventListener('click', function () { setMode('training'); });
   $('edit').addEventListener('click', disarm);
 
   $('form').addEventListener('submit', async function (ev) {
@@ -1349,7 +1449,7 @@
 
     if (!d) { body.appendChild(el('p', 'empty', 'Chargement de la fiche…')); return; }
     var sp = d.space || {};
-    body.appendChild(averagesCard(sp.seasons || []));
+    body.appendChild(averagesCard(sp.seasons || [], sp.last3));
     appendCharts(body, sp.charts || {});
     var rc = card('Derniers tours');
     rc.appendChild(roundsList(sp.recent || []));
@@ -1454,9 +1554,9 @@
         if (!m || !m.n) return;
         var sec = el('div', 'mental-sec');
         sec.appendChild(el('h3', null, k[1] + ' · ' + m.n + ' évaluation' + (m.n > 1 ? 's' : '')));
-        if (m.last) sec.appendChild(el('p', 'hint small', 'Dernière : ' + frDate(m.last.date) + ' · ' + m.last.name + ' · ' + m.last.total + '/20' + (m.last.zone ? ' · ' + m.last.zone : '')));
+        if (m.last) sec.appendChild(el('p', 'hint small', 'Dernière : ' + frDate(m.last.date) + ' · ' + m.last.name + ' · ' + m.last.total + '/' + mentalMax(k[0]) + (m.last.zone ? ' · ' + m.last.zone : '')));
         if (m.avg) {
-          sec.appendChild(el('p', 'hint small', 'Total moyen : ' + num(m.total, 1) + '/20'));
+          sec.appendChild(el('p', 'hint small', 'Total moyen : ' + num(m.total, 1) + '/' + mentalMax(k[0])));
           if (m.weakest.length) {
             var w = el('p', 'focus');
             w.appendChild(el('b', null, 'À travailler en premier : '));
@@ -1470,7 +1570,7 @@
           var left = el('div');
           left.appendChild(el('div', 't', h.name));
           left.appendChild(el('div', 's', frDate(h.date) + (h.work && h.work.length ? ' · à travailler : ' + h.work.join(', ') : '')));
-          var right = el('div', 'r', h.total + '/20');
+          var right = el('div', 'r', h.total + '/' + mentalMax(k[0]));
           if (h.zone) right.appendChild(el('small', null, h.zone));
           li.appendChild(left); li.appendChild(right);
           ul.appendChild(li);
