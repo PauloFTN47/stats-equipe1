@@ -687,11 +687,11 @@
     match: {
       sub: 'après un match',
       items: [
-        ['Me conditionner avant le match', 'Je me prépare pour avoir plus de chances de bien débuter.'],
-        ['Bien (mal) jouer', 'Je joue bien même quand je ne suis pas à mon meilleur niveau.'],
-        ['Ne pas lâcher', 'Je reste constant, je tiens ma tête, je fais peu de fautes.'],
+        ['Évaluation de ma préparation', 'Échauffement, routine, matériel, repas et eau, état d’esprit au départ : étais-je prêt à bien débuter ? 4 = prêt et en confiance dès le trou 1. 1 = parti à froid ou dans le flou.'],
+        ['Bien (mal) jouer', 'Ma qualité de jeu quand je ne suis pas à mon meilleur niveau. 4 = même sans mes meilleurs coups, j’ai trouvé comment scorer (jeu simplifié, bonnes décisions, erreurs limitées). 1 = j’ai subi mon mauvais jeu et il s’est aggravé.'],
+        ['Ne pas lâcher', 'Ma constance du trou 1 au trou 18. 4 = même concentration et même routine jusqu’au bout, jamais abattu après un mauvais trou. 1 = relâché ou résigné après une erreur, fin de tour bâclée.'],
         ['Sentir ce qui se passe', 'Je perçois ce qui se passe chez l’adversaire et en moi, je reconnais les temps forts et faibles, je suis malin.'],
-        ['Dominer mes peurs', 'Dans les moments tendus, je domine mes peurs pour continuer d’attaquer.']
+        ['Dominer mes peurs', 'Ai-je réussi les coups importants (drive étroit, putt important à 1,20 m, coup décisif) ? 4 = je les ai réussis en attaquant malgré la pression. 1 = je les ai évités, subis ou ratés en me crispant.']
       ]
     },
     training: {
