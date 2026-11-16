@@ -3,7 +3,7 @@
 
   var API = (window.APP_CONFIG && window.APP_CONFIG.API_URL) || '';
   var SIM = /[?&]simulation=1/.test(window.location.search);   // ?simulation=1 : vérifie tout, n'écrit rien
-  var K = { key: 'stats.key', init: 'stats.init', session: 'stats.session', queue: 'stats.queue', recent: 'stats.recent', hint: 'stats.hint', space: 'stats.space', cal: 'stats.cal' };
+  var K = { key: 'stats.key', init: 'stats.init', session: 'stats.session', queue: 'stats.queue', recent: 'stats.recent', hint: 'stats.hint', space: 'stats.space', cal: 'stats.cal', staff: 'stats.staff', sov: 'stats.sov', scal: 'stats.scal' };
   var OTHER = '__autre__';   // valeur de l'option « Autre parcours »
   var TYPES = { 1: 'Compétition', 2: 'Tour annoncé', 3: 'Entraînement (non compté)' };
   var state = { data: null, session: null, armed: false, flushing: false, calFilter: 'all' };
@@ -48,7 +48,7 @@
   /* ---------- Affichage ---------- */
 
   function show(screen) {
-    ['loading', 'key', 'login', 'app'].forEach(function (s) { $('screen-' + s).hidden = s !== screen; });
+    ['loading', 'key', 'login', 'staff-login', 'staff', 'app'].forEach(function (s) { $('screen-' + s).hidden = s !== screen; });
   }
 
   function setMsg(id, text, kind) {
@@ -110,7 +110,7 @@
       var res = await request(API + '?action=init&key=' + encodeURIComponent(key));
       if (res && res.ok) { data = res; save(K.init, res); }
       else if (res && res.error && res.error.code === 'KEY') {
-        drop(K.key); drop(K.init); drop(K.session);
+        drop(K.key); drop(K.init); drop(K.session); drop(K.staff); drop(K.sov); drop(K.scal);
         enterKey('Clé refusée. Rouvre le lien reçu du capitaine ou ressaisis la clé.');
         return;
       }
@@ -125,7 +125,9 @@
     state.session = load(K.session, null);
     if (state.session && data.players.indexOf(state.session.player) < 0) state.session = null;
 
+    var st = load(K.staff, null);
     if (state.session) { enterApp(); refreshMe(); }
+    else if (st && st.me && st.me.actions && data.staff && data.staff.indexOf(st.name) >= 0) { state.staff = st; enterStaff(); }
     else enterLogin();
   }
 
@@ -147,6 +149,7 @@
     fill($('login-player'), state.data.players, 'Choisis ton nom');
     $('login-pin').value = '';
     hideMsg('login-msg');
+    $('to-staff').hidden = !(state.data.staff && state.data.staff.length);
     show('login');
   }
 
@@ -193,6 +196,7 @@
         save(K.session, state.session);
         save(K.recent, res.recent);
         drop(K.space); drop(K.cal);
+        drop(K.staff); drop(K.sov); drop(K.scal); state.staff = null;   // une seule session à la fois sur l'appareil
         enterApp();
       } else {
         setMsg('login-msg', res.error ? res.error.message : 'Connexion refusée.', 'err');
@@ -274,7 +278,15 @@
     body.appendChild(averagesCard(d.seasons || []));
     if (d.mental) body.appendChild(mentalCard(d.mental));
 
-    var ch = d.charts || {};
+    appendCharts(body, d.charts || {});
+
+    var c4 = card('Mes derniers tours');
+    c4.appendChild(roundsList(d.recent || []));
+    c4.appendChild(el('p', 'hint small', 'Lecture seule. Pour corriger un tour, préviens le capitaine.'));
+    body.appendChild(c4);
+  }
+
+  function appendCharts(body, ch) {
     var c1 = card('Écart au SSS en compétition', 'Coups au-dessus du SSS : plus bas = mieux. Les lignes pointillées sont les plafonds de moyenne par rôle.');
     if (ch.ecart && ch.ecart.length) {
       var caps = ch.ecart[ch.ecart.length - 1].caps || [];
@@ -300,11 +312,6 @@
     if (ch.profile && ch.profile.length) c3.appendChild(barChart(ch.profile));
     else c3.appendChild(el('p', 'empty', 'Pas encore de statistiques de profil.'));
     body.appendChild(c3);
-
-    var c4 = card('Mes derniers tours');
-    c4.appendChild(roundsList(d.recent || []));
-    c4.appendChild(el('p', 'hint small', 'Lecture seule. Pour corriger un tour, préviens le capitaine.'));
-    body.appendChild(c4);
   }
 
   function teamCard(t, season) {
@@ -625,8 +632,8 @@
     return h;
   }
 
-  function renderCal(d) {
-    var body = $('cal-body');
+  function renderCal(d, targetId) {
+    var body = $(targetId || 'cal-body');
     body.textContent = '';
     var today = d.today || state.data.today;
     var events = d.events || [];
@@ -645,7 +652,7 @@
       var b = el('button', null, o[1]);
       b.type = 'button';
       b.setAttribute('aria-pressed', String(filter === o[0]));
-      b.addEventListener('click', function () { state.calFilter = o[0]; renderCal(d); });
+      b.addEventListener('click', function () { state.calFilter = o[0]; renderCal(d, targetId); });
       seg.appendChild(b);
     });
     body.appendChild(seg);
@@ -993,6 +1000,487 @@
     $('ios-hint').hidden = !(ios && !standalone && !load(K.hint, false));
   }
   $('ios-hint-close').addEventListener('click', function () { save(K.hint, true); $('ios-hint').hidden = true; });
+
+  /* ---------- Encadrement (staff) ---------- */
+  // Interface réservée au staff : le contrôle des droits est fait par l'API (code individuel + rôle) à chaque requête.
+  // Ici, l'interface n'affiche que ce que l'API accepte de renvoyer. Tout texte venu de l'API passe par textContent.
+
+  var staffTab = 'sum';
+  state.staff = null; state.ov = null; state.sel = null; state.detail = {}; state.mentalAll = null;
+
+  function frDate(iso) { return iso ? String(iso).split('-').reverse().join('/') : ''; }
+  function can(action) { return !!(state.staff && state.staff.me && state.staff.me.actions.indexOf(action) >= 0); }
+
+  function postStaff(action, extra) {
+    return post(Object.assign({ action: action, staff: state.staff.name, pin: state.staff.pin }, extra || {}));
+  }
+
+  function staffClear() {
+    drop(K.staff); drop(K.sov); drop(K.scal);
+    state.staff = null; state.ov = null; state.detail = {}; state.sel = null; state.mentalAll = null;
+  }
+
+  function staffFail(err, msgId) {
+    if (err.code === 'AUTH' || err.code === 'LOCKED') { staffClear(); enterStaffLogin(err.message); return; }
+    setMsg(msgId, err.message, 'err');
+  }
+
+  function enterStaffLogin(msg) {
+    fill($('slogin-name'), state.data.staff || [], 'Choisis ton nom');
+    $('slogin-pin').value = '';
+    if (msg) setMsg('slogin-msg', msg, 'err'); else hideMsg('slogin-msg');
+    show('staff-login');
+  }
+  $('to-staff').addEventListener('click', function () { enterStaffLogin(); });
+  $('back-player').addEventListener('click', function () { enterLogin(); });
+
+  $('slogin-form').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    hideMsg('slogin-msg');
+    var name = $('slogin-name').value;
+    var pin = $('slogin-pin').value.trim();
+    if (!name) return setMsg('slogin-msg', 'Choisis ton nom.', 'err');
+    if (!pin) return setMsg('slogin-msg', 'Saisis ton code.', 'err');
+    $('slogin-btn').disabled = true;
+    $('slogin-btn').textContent = 'Connexion…';
+    try {
+      var res = await post({ action: 'staff_login', staff: name, pin: pin });
+      if (res.ok) {
+        state.staff = { name: name, pin: pin, me: res.me };
+        save(K.staff, state.staff);
+        drop(K.session); drop(K.recent); drop(K.space); drop(K.cal); drop(K.sov); drop(K.scal);   // une seule session à la fois sur l'appareil
+        state.session = null; state.ov = null; state.detail = {}; state.sel = null; state.mentalAll = null;
+        enterStaff();
+      } else {
+        setMsg('slogin-msg', res.error ? res.error.message : 'Connexion refusée.', 'err');
+      }
+    } catch (e) {
+      setMsg('slogin-msg', 'Pas de réseau. La connexion demande internet la première fois.', 'err');
+    } finally {
+      $('slogin-btn').disabled = false;
+      $('slogin-btn').textContent = 'Se connecter';
+    }
+  });
+
+  function staffLogout() { staffClear(); enterLogin(); }
+  $('staff-logout').addEventListener('click', staffLogout);
+
+  function enterStaff() {
+    $('staff-who').textContent = state.staff.name;
+    $('staff-role').textContent = state.staff.me.label;
+    $('tab-s-mental').hidden = !can('mental');
+    var cov = load(K.sov, null);
+    state.ov = cov && cov.team && cov.players && cov.period ? cov : null;   // copie locale abîmée ou ancienne : ignorée
+    state.sel = null;
+    hideMsg('s-msg');
+    selectStaffTab('sum');
+    show('staff');
+    refreshOverview();
+  }
+
+  var STAFF_TABS = ['sum', 'players', 'rank', 'cal', 'mental'];
+  STAFF_TABS.forEach(function (t) { $('tab-s-' + t).addEventListener('click', function () { selectStaffTab(t); }); });
+
+  function selectStaffTab(name) {
+    if (name === 'mental' && !can('mental')) name = 'sum';
+    staffTab = name;
+    hideMsg('s-msg');
+    STAFF_TABS.forEach(function (t) {
+      $('view-s-' + t).hidden = t !== name;
+      $('tab-s-' + t).setAttribute('aria-selected', String(t === name));
+    });
+    if (name === 'cal') loadStaffCal();
+    else if (name === 'mental') loadMental();
+    else { renderStaffCurrent(); if (!state.ov) refreshOverview(); }
+  }
+
+  function renderStaffCurrent() {
+    if (!state.ov) return;
+    if (staffTab === 'sum') renderSummary(state.ov);
+    else if (staffTab === 'players') renderPlayers();
+    else if (staffTab === 'rank') renderRanking(state.ov);
+  }
+
+  async function refreshOverview() {
+    if (!state.staff) return;
+    if (!state.ov) setMsg('s-msg', 'Chargement… la première ouverture peut prendre quelques secondes.', 'ok');
+    try {
+      var res = await postStaff('staff_overview');
+      if (!state.staff) return;
+      if (res.ok) {
+        state.ov = res; save(K.sov, res);
+        if (staffTab === 'sum' || staffTab === 'players' || staffTab === 'rank') hideMsg('s-msg');
+        renderStaffCurrent();
+      } else staffFail(res.error || { code: 'SERVER', message: 'Erreur inconnue.' }, 's-msg');
+    } catch (e) {
+      if (state.ov) setMsg('s-msg', 'Hors ligne : données de la dernière connexion.', 'ok');
+      else setMsg('s-msg', 'Pas de réseau. La vue s’affichera dès que le réseau revient.', 'err');
+    }
+  }
+
+  /* -- petits éléments communs -- */
+
+  function kv(dl, k, v) {
+    dl.appendChild(el('dt', null, k));
+    dl.appendChild(el('dd', null, v === '' || v === null || v === undefined ? '–' : String(v)));
+  }
+
+  /** Style d'un badge de catégorie (le texte vient de l'API, jamais le style). */
+  function catClass(cat) {
+    if (!cat) return 'badge off';
+    if (cat === 'Complet') return 'badge strong';
+    if (cat === 'Métronome') return 'badge ok';
+    if (cat === 'Régulier') return 'badge off';
+    if (cat === 'Pas au niveau') return 'badge wait';
+    if (/^Faible/.test(cat)) return 'badge wait';
+    return 'badge ok';
+  }
+
+  function catBadges(p) {
+    var box = el('div', 'role-line');
+    box.appendChild(el('span', catClass(p.category), p.category || 'Pas de catégorie'));
+    if (p.info) box.appendChild(el('span', 'badge off', p.info));
+    if (p.category && p.faibles && p.faibles.length && (p.category === 'Complet' || p.category === 'Métronome')) {
+      box.appendChild(el('span', 'badge wait', 'faible en ' + p.faibles.map(function (k) { return p.axes[k].label.toLowerCase(); }).join(' et ')));
+    }
+    return box;
+  }
+
+  function freshText(f) {
+    if (f.status === 'aucun') return 'Aucun tour';
+    if (f.status === 'sans-date') return 'Aucun tour daté';
+    return 'Dernier tour le ' + frDate(f.lastDate) + ' (il y a ' + f.days + ' jour' + (f.days > 1 ? 's' : '') + ')';
+  }
+
+  function trendNode(trend) {
+    if (trend === null || trend === undefined) return null;
+    var up = trend < 0;                  // écart au SSS plus bas = progression
+    var s = el('span', 'trend ' + (trend === 0 ? 'flat' : (up ? 'up' : 'down')), (trend === 0 ? '=' : (up ? '▲ ' : '▼ ')) + signed(trend));
+    return s;
+  }
+
+  /* -- Synthèse -- */
+
+  function renderSummary(ov) {
+    var body = $('s-sum-body');
+    body.textContent = '';
+    var t = ov.team;
+    var n = t.nPlayers;
+
+    var c1 = card('Sélection ' + ov.season, (ov.period && ov.period.label) || '');
+    var dl = el('dl', 'kv');
+    kv(dl, 'Joueurs', n);
+    kv(dl, 'Sélectionnables', t.nSelectable + ' / ' + n);
+    ['Titulaire', 'Équipier', 'Remplaçant', 'Prétendant', 'Sans rôle'].forEach(function (r) { if (t.roles[r]) kv(dl, r, t.roles[r]); });
+    c1.appendChild(dl);
+    c1.appendChild(el('p', 'hint small', 'Rôles et critères lus dans l’onglet « Equipe 2027 » du fichier. Un joueur sans rôle manque souvent de tours datés dans sa fiche.'));
+    body.appendChild(c1);
+
+    var c2 = card('Fraîcheur des données', 'Tours datés depuis le ' + frDate(ov.period.start) + ' (règle de sélection) et statistiques complètes.');
+    var dl2 = el('dl', 'kv');
+    kv(dl2, 'À relancer', t.nRelaunch + ' / ' + n);
+    kv(dl2, 'Profils établis', t.nProfiled + ' / ' + n + (t.nProvisional ? ' (dont ' + t.nProvisional + ' provisoires)' : ''));
+    c2.appendChild(dl2);
+    var late = ov.players.filter(function (p) { return p.fresh.status !== 'ok'; });
+    if (late.length) {
+      var ul = el('ul', 'rounds');
+      late.forEach(function (p) {
+        var li = el('li');
+        li.appendChild(el('div', 't', p.name));
+        li.appendChild(el('div', 'r', freshText(p.fresh)));
+        ul.appendChild(li);
+      });
+      c2.appendChild(ul);
+    } else c2.appendChild(el('p', 'empty', 'Tous les joueurs ont saisi récemment.'));
+    body.appendChild(c2);
+
+    var c3 = card('Profil de jeu de l’équipe', 'Forts et faibles par rapport à la moyenne de l’équipe (écart d’au moins 0,5 écart-type).');
+    var tb = el('table', 'stats');
+    var head = el('tr');
+    ['Axe', 'Forts', 'Faibles', 'Moyenne'].forEach(function (h) { head.appendChild(el('th', null, h)); });
+    tb.appendChild(head);
+    t.axes.forEach(function (a) {
+      var tr = el('tr');
+      tr.appendChild(el('th', null, a.label));
+      tr.appendChild(el('td', null, a.known >= 4 ? String(a.forts) : '–'));
+      tr.appendChild(el('td', null, a.known >= 4 ? String(a.faibles) : '–'));
+      tr.appendChild(el('td', null, a.ref ? (a.key === 'put' ? num(a.ref.mu, 2) : pct(a.ref.mu)) : 'peu d’informations'));
+      tb.appendChild(tr);
+    });
+    c3.appendChild(tb);
+    var fw = el('p', 'focus');
+    if (t.weakAxes && t.weakAxes.length) {
+      fw.appendChild(el('b', null, 'Point faible collectif : '));
+      fw.appendChild(document.createTextNode(t.weakAxes.join(', ')));
+    } else fw.appendChild(document.createTextNode('Aucun point faible collectif net pour le moment.'));
+    c3.appendChild(fw);
+    var cats = Object.keys(t.categories).sort(function (a, b) { return t.categories[b] - t.categories[a] || a.localeCompare(b, 'fr'); });
+    var catBox = el('div', 'role-line');
+    cats.forEach(function (k) { catBox.appendChild(el('span', catClass(k === 'Peu d’informations' ? null : k), k + ' · ' + t.categories[k])); });
+    c3.appendChild(catBox);
+    c3.appendChild(el('p', 'hint small', 'Profil calculé sur les 12 derniers tours avec statistiques complètes. Provisoire en dessous de 8 tours, non classé en dessous de 4.'));
+    body.appendChild(c3);
+
+    var c4 = card('Mental : critère le plus faible de l’équipe', 'Moyenne des joueurs ayant au moins 2 évaluations, affichée à partir de 5 joueurs. Aucune note individuelle.');
+    var any = false;
+    [['match', 'Après un match'], ['training', 'Après un entraînement']].forEach(function (k) {
+      var m = ov.mental && ov.mental[k[0]];
+      if (!m) return;
+      any = true;
+      var row = el('p', 'focus');
+      row.appendChild(el('b', null, k[1] + ' : '));
+      if (m.enough) {
+        row.appendChild(document.createTextNode((m.weakest.length ? m.weakest.join(', ') : 'aucun critère ne ressort') + ' (' + m.players + ' joueurs)'));
+      } else {
+        row.appendChild(document.createTextNode('peu d’informations (' + m.players + ' joueur' + (m.players > 1 ? 's' : '') + ', 5 minimum)'));
+      }
+      c4.appendChild(row);
+    });
+    if (!any) c4.appendChild(el('p', 'empty', 'Pas encore d’évaluation mentale.'));
+    body.appendChild(c4);
+  }
+
+  /* -- Joueurs : liste puis fiche -- */
+
+  function renderPlayers() {
+    if (state.sel) { renderDetail(state.sel); return; }
+    var body = $('s-players-body');
+    body.textContent = '';
+    var ov = state.ov;
+    var list = el('div', 'plist');
+    ov.players.forEach(function (p) {
+      var b = el('button', 'pitem');
+      b.type = 'button';
+      var top = el('div', 'ptop');
+      top.appendChild(el('span', 'pname', p.name));
+      if (p.selection && p.selection.role) top.appendChild(el('span', 'badge role', p.selection.role));
+      b.appendChild(top);
+      b.appendChild(catBadges(p.profile));
+      var line = el('div', 'pline');
+      var f = p.form;
+      line.appendChild(document.createTextNode(f.avg5 === null ? 'Forme : pas assez de tours de compétition' : 'Forme : ' + signed(f.avg5) + ' au SSS (' + f.n5 + ' derniers tours) '));
+      var tr = trendNode(f.trend);
+      if (tr) line.appendChild(tr);
+      b.appendChild(line);
+      b.appendChild(el('div', 'pline muted', freshText(p.fresh)));
+      b.addEventListener('click', function () { openPlayer(p.name); });
+      list.appendChild(b);
+    });
+    body.appendChild(list);
+  }
+
+  async function openPlayer(name) {
+    state.sel = name;
+    renderDetail(name);
+    if (state.detail[name]) return;
+    try {
+      var res = await postStaff('staff_player', { target: name });
+      if (!state.staff) return;
+      if (res.ok) { state.detail[name] = res; hideMsg('s-msg'); if (state.sel === name) renderDetail(name); }
+      else staffFail(res.error || { code: 'SERVER', message: 'Erreur inconnue.' }, 's-msg');
+    } catch (e) {
+      setMsg('s-msg', 'Pas de réseau. La fiche s’affichera dès que le réseau revient.', 'err');
+    }
+  }
+
+  function levelBadge(a) {
+    if (a.level === 'fort') return el('span', 'badge ok', 'Fort');
+    if (a.level === 'faible') return el('span', 'badge wait', 'Faible');
+    if (a.level === 'moyen') return el('span', 'badge off', 'Moyen');
+    return el('span', 'badge off', a.note || '–');
+  }
+
+  function renderDetail(name) {
+    var body = $('s-players-body');
+    body.textContent = '';
+    var back = el('button', 'secondary', '← Tous les joueurs');
+    back.type = 'button';
+    back.addEventListener('click', function () { state.sel = null; hideMsg('s-msg'); renderPlayers(); });
+    body.appendChild(back);
+
+    var d = state.detail[name];
+    var p = (state.ov && state.ov.players.filter(function (x) { return x.name === name; })[0]) || (d && d.detail) || null;
+    var head = card(name);
+    if (p && p.selection && p.selection.role) {
+      var rl = el('div', 'role-line');
+      rl.appendChild(el('span', 'badge role', p.selection.role));
+      if (p.selection.selectable) rl.appendChild(el('span', 'badge ' + (p.selection.selectable === 'Oui' ? 'ok' : 'wait'), 'Sélectionnable : ' + p.selection.selectable));
+      head.appendChild(rl);
+      var dl0 = el('dl', 'kv');
+      kv(dl0, 'Moyenne contre le SSS', p.selection.avg);
+      kv(dl0, 'Tours retenus', p.selection.retained);
+      kv(dl0, 'Tours de compétition', p.selection.comp);
+      head.appendChild(dl0);
+      if (p.selection.missing && p.selection.selectable !== 'Oui') head.appendChild(el('p', 'hint small', p.selection.missing));
+    }
+    body.appendChild(head);
+
+    if (p) {
+      var pc = card('Profil de jeu', 'Comparé à la moyenne de l’équipe. Valeur = moyenne sur les ' + p.profile.n + ' derniers tours avec statistiques' + (p.profile.nChip ? ' (chip-putts : ' + p.profile.nChip + ' tours)' : '') + '.');
+      pc.appendChild(catBadges(p.profile));
+      var tb = el('table', 'stats');
+      var hr = el('tr');
+      ['Axe', 'Valeur', 'Écart équipe', 'Niveau'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
+      tb.appendChild(hr);
+      ['dep', 'app', 'put', 'chip'].forEach(function (k) {
+        var a = p.profile.axes[k];
+        var tr = el('tr');
+        tr.appendChild(el('th', null, a.label));
+        tr.appendChild(el('td', null, a.value === null ? '–' : (k === 'put' ? num(a.value, 2) : pct(a.value))));
+        tr.appendChild(el('td', null, a.z === null ? '–' : signed(a.z)));
+        var td = el('td');
+        td.appendChild(levelBadge(a));
+        tr.appendChild(td);
+        tb.appendChild(tr);
+      });
+      pc.appendChild(tb);
+      pc.appendChild(el('p', 'hint small', 'Écart équipe en écarts-types : positif = meilleur que l’équipe (pour le putting, un TRP plus bas est meilleur). Fort à +0,5 et plus, faible à −0,5 et moins.'));
+      body.appendChild(pc);
+
+      var fc = card('Données', freshText(p.fresh));
+      var dl1 = el('dl', 'kv');
+      kv(dl1, 'Tours dans la fiche', p.fresh.nRounds);
+      kv(dl1, 'Tours datés depuis le ' + frDate(state.ov ? state.ov.period.start : ''), p.fresh.datedSince);
+      kv(dl1, 'Dont avec stats complètes', p.fresh.statsSince);
+      kv(dl1, 'Couverture des stats (12 derniers tours)', p.fresh.coverage === null ? '–' : p.fresh.coverage + ' %');
+      fc.appendChild(dl1);
+      body.appendChild(fc);
+    }
+
+    if (!d) { body.appendChild(el('p', 'empty', 'Chargement de la fiche…')); return; }
+    var sp = d.space || {};
+    body.appendChild(averagesCard(sp.seasons || []));
+    appendCharts(body, sp.charts || {});
+    var rc = card('Derniers tours');
+    rc.appendChild(roundsList(sp.recent || []));
+    body.appendChild(rc);
+  }
+
+  /* -- Classement -- */
+
+  function renderRanking(ov) {
+    var body = $('s-rank-body');
+    body.textContent = '';
+    var c = card('Forme', 'Moyenne de l’écart au SSS sur les 5 derniers tours de compétition (3 minimum). Plus bas = mieux. ▲ = progression contre les 5 tours précédents.');
+    var ranked = ov.players.filter(function (p) { return p.rank !== null; }).sort(function (a, b) { return a.rank - b.rank; });
+    if (ranked.length) {
+      var tb = el('table', 'stats rank');
+      var hr = el('tr');
+      ['#', 'Joueur', 'Forme', 'Évol.'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
+      tb.appendChild(hr);
+      ranked.forEach(function (p) {
+        var tr = el('tr');
+        tr.appendChild(el('td', null, String(p.rank)));
+        var tn = el('td', 'nm');
+        tn.appendChild(el('div', null, p.name));
+        if (p.selection && p.selection.role) tn.appendChild(el('small', null, p.selection.role));
+        tr.appendChild(tn);
+        tr.appendChild(el('td', 'cur', signed(p.form.avg5)));
+        var te = el('td');
+        var tr2 = trendNode(p.form.trend);
+        te.appendChild(tr2 || document.createTextNode('–'));
+        tr.appendChild(te);
+        tb.appendChild(tr);
+      });
+      c.appendChild(tb);
+    } else c.appendChild(el('p', 'empty', 'Pas encore assez de tours de compétition.'));
+    body.appendChild(c);
+
+    var rest = ov.players.filter(function (p) { return p.rank === null; });
+    if (rest.length) {
+      var c2 = card('Pas assez de tours de compétition', 'Moins de 3 tours de compétition avec écart au SSS : pas de classement.');
+      var ul = el('ul', 'rounds');
+      rest.forEach(function (p) {
+        var li = el('li');
+        li.appendChild(el('div', 't', p.name));
+        li.appendChild(el('div', 'r', p.form.nComp + ' tour' + (p.form.nComp > 1 ? 's' : '')));
+        ul.appendChild(li);
+      });
+      c2.appendChild(ul);
+      body.appendChild(c2);
+    }
+  }
+
+  /* -- Calendrier -- */
+
+  async function loadStaffCal() {
+    if (!state.staff) return;
+    var cached = load(K.scal, null);
+    if (cached && !Array.isArray(cached.events) && !cached.missing) cached = null;
+    if (cached) { renderCal(cached, 's-cal-body'); hideMsg('s-msg'); }
+    else { $('s-cal-body').textContent = ''; setMsg('s-msg', 'Chargement…', 'ok'); }
+    try {
+      var res = await postStaff('staff_calendar');
+      if (!state.staff) return;
+      if (res.ok) { save(K.scal, res); if (staffTab === 'cal') { hideMsg('s-msg'); renderCal(res, 's-cal-body'); } }
+      else staffFail(res.error || { code: 'SERVER', message: 'Erreur inconnue.' }, 's-msg');
+    } catch (e) {
+      if (cached) setMsg('s-msg', 'Hors ligne : calendrier de la dernière connexion.', 'ok');
+      else setMsg('s-msg', 'Pas de réseau. Le calendrier s’affichera dès que le réseau revient.', 'err');
+    }
+  }
+
+  /* -- Mental individuel (capitaine seulement ; jamais gardé sur l'appareil) -- */
+
+  async function loadMental() {
+    if (!state.staff || !can('mental')) return;
+    if (state.mentalAll) renderMentalAll(state.mentalAll);
+    else { $('s-mental-body').textContent = ''; setMsg('s-msg', 'Chargement…', 'ok'); }
+    try {
+      var res = await postStaff('staff_mental');
+      if (!state.staff) return;
+      if (res.ok) { state.mentalAll = res; if (staffTab === 'mental') { hideMsg('s-msg'); renderMentalAll(res); } }
+      else staffFail(res.error || { code: 'SERVER', message: 'Erreur inconnue.' }, 's-msg');
+    } catch (e) {
+      if (state.mentalAll) setMsg('s-msg', 'Hors ligne : données de la dernière ouverture.', 'ok');
+      else setMsg('s-msg', 'Pas de réseau. Cette vue demande internet.', 'err');
+    }
+  }
+
+  function renderMentalAll(res) {
+    var body = $('s-mental-body');
+    body.textContent = '';
+    var intro = card('Mental individuel', 'Visible par toi seul. Ces données restent en mémoire le temps de la consultation et ne sont pas gardées sur l’appareil.');
+    body.appendChild(intro);
+    res.players.forEach(function (p) {
+      var det = el('details', 'card mdet');
+      var sum = el('summary');
+      sum.appendChild(el('span', 'pname', p.name));
+      var tot = p.match.n + p.training.n;
+      sum.appendChild(el('span', 'hint', tot ? tot + ' évaluation' + (tot > 1 ? 's' : '') : 'aucune'));
+      det.appendChild(sum);
+      [['match', 'Après un match'], ['training', 'Après un entraînement']].forEach(function (k) {
+        var m = p[k[0]];
+        if (!m || !m.n) return;
+        var sec = el('div', 'mental-sec');
+        sec.appendChild(el('h3', null, k[1] + ' · ' + m.n + ' évaluation' + (m.n > 1 ? 's' : '')));
+        if (m.last) sec.appendChild(el('p', 'hint small', 'Dernière : ' + frDate(m.last.date) + ' · ' + m.last.name + ' · ' + m.last.total + '/20' + (m.last.zone ? ' · ' + m.last.zone : '')));
+        if (m.avg) {
+          sec.appendChild(el('p', 'hint small', 'Total moyen : ' + num(m.total, 1) + '/20'));
+          if (m.weakest.length) {
+            var w = el('p', 'focus');
+            w.appendChild(el('b', null, 'À travailler en premier : '));
+            w.appendChild(document.createTextNode(m.weakest.join(', ')));
+            sec.appendChild(w);
+          }
+        } else sec.appendChild(el('p', 'hint small', 'Les moyennes apparaissent dès 2 évaluations.'));
+        var ul = el('ul', 'rounds');
+        (m.history || []).forEach(function (h) {
+          var li = el('li');
+          var left = el('div');
+          left.appendChild(el('div', 't', h.name));
+          left.appendChild(el('div', 's', frDate(h.date) + (h.work && h.work.length ? ' · à travailler : ' + h.work.join(', ') : '')));
+          var right = el('div', 'r', h.total + '/20');
+          if (h.zone) right.appendChild(el('small', null, h.zone));
+          li.appendChild(left); li.appendChild(right);
+          ul.appendChild(li);
+        });
+        sec.appendChild(ul);
+        det.appendChild(sec);
+      });
+      body.appendChild(det);
+    });
+  }
 
   /* ---------- Lancement ---------- */
 

@@ -189,3 +189,28 @@ input[type="date"] { min-width: 0; -webkit-appearance: none; appearance: none; }
 .mrow.weak .ml, .mrow.weak .mv { font-weight: 700; color: var(--ink); }
 .mrow.weak .mfill { background: var(--accent); }
 .focus { margin: 8px 0 10px; padding: 10px 12px; background: var(--soft); border-left: 4px solid var(--accent); border-radius: 8px; font-size: .92rem; }
+
+/* ---------- Encadrement ---------- */
+.role-sub { font-size: .8rem; color: var(--muted); font-weight: 600; }
+#to-staff { display: block; margin: 14px auto 0; }
+#back-player { display: block; margin: 14px auto 0; }
+.tabs.staff { display: flex; flex-wrap: wrap; }
+.tabs.staff button { flex: 1 1 30%; }
+#screen-staff .card, #screen-staff .hint-line { margin-bottom: 12px; }
+#screen-staff .card > h2 { margin: 0 0 4px; font-size: 1.05rem; }
+.plist { display: grid; gap: 8px; }
+.pitem { text-align: left; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 0; min-height: 0; font-weight: 400; }
+.pitem .ptop { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pname { font-weight: 700; }
+.pline { font-size: .88rem; margin-top: 4px; }
+.pline.muted, .muted { color: var(--muted); }
+.trend { font-weight: 700; font-size: .85rem; white-space: nowrap; }
+.trend.up { color: var(--accent); }
+.trend.down { color: var(--warn); }
+.trend.flat { color: var(--muted); }
+table.rank td.nm { text-align: left; }
+table.rank td.nm small { display: block; color: var(--muted); }
+table.rank th:nth-child(2) { text-align: left; }
+.mdet { margin-bottom: 8px; padding: 12px 14px; }
+.mdet summary { display: flex; justify-content: space-between; gap: 8px; cursor: pointer; }
+.card > .secondary, #s-players-body > .secondary { margin: 0 0 12px; }

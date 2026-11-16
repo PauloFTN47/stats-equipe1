@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=8">
+<link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body>
 <main>
@@ -52,6 +52,48 @@
       <button type="submit" id="login-btn">Se connecter</button>
       <div class="msg" id="login-msg" role="alert" hidden></div>
     </form>
+    <button type="button" class="link" id="to-staff" hidden>Accès encadrement</button>
+  </section>
+
+  <!-- Connexion encadrement -->
+  <section id="screen-staff-login" hidden>
+    <img class="logo" src="icons/logo-256.png" alt="Casteljaloux Golf Club" width="128" height="128">
+    <h1>Encadrement</h1>
+    <p class="sub">Connecte-toi avec ton nom et ton code d'encadrement (différent d'un code joueur).</p>
+    <form id="slogin-form" class="card" novalidate autocomplete="off">
+      <label for="slogin-name">Nom</label>
+      <select id="slogin-name" required></select>
+      <label for="slogin-pin">Code d'encadrement</label>
+      <input id="slogin-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="6 chiffres">
+      <button type="submit" id="slogin-btn">Se connecter</button>
+      <div class="msg" id="slogin-msg" role="alert" hidden></div>
+    </form>
+    <button type="button" class="link" id="back-player">Retour à l'accès joueur</button>
+  </section>
+
+  <!-- Encadrement -->
+  <section id="screen-staff" hidden>
+    <header class="bar">
+      <img class="logo-sm" src="icons/logo-256.png" alt="" width="40" height="40">
+      <div class="bar-id">
+        <div class="who" id="staff-who"></div>
+        <div class="role-sub" id="staff-role"></div>
+      </div>
+      <button type="button" class="link" id="staff-logout">Quitter</button>
+    </header>
+    <nav class="tabs staff" role="tablist">
+      <button type="button" role="tab" id="tab-s-sum" aria-selected="true">Synthèse</button>
+      <button type="button" role="tab" id="tab-s-players" aria-selected="false">Joueurs</button>
+      <button type="button" role="tab" id="tab-s-rank" aria-selected="false">Classement</button>
+      <button type="button" role="tab" id="tab-s-cal" aria-selected="false">Calendrier</button>
+      <button type="button" role="tab" id="tab-s-mental" aria-selected="false" hidden>Mental</button>
+    </nav>
+    <div class="msg" id="s-msg" role="status" hidden></div>
+    <div id="view-s-sum"><div id="s-sum-body"></div></div>
+    <div id="view-s-players" hidden><div id="s-players-body"></div></div>
+    <div id="view-s-rank" hidden><div id="s-rank-body"></div></div>
+    <div id="view-s-cal" hidden><div id="s-cal-body"></div></div>
+    <div id="view-s-mental" hidden><div id="s-mental-body"></div></div>
   </section>
 
   <!-- Appli -->
@@ -151,7 +193,7 @@
           <p class="hint-line">Note chaque critère de 1 à 4 : <b>4</b> très bon · <b>3</b> bon · <b>2</b> moyen · <b>1</b> mauvais.</p>
           <div id="mental-list"></div>
           <div class="live" id="mental-live" aria-live="polite"></div>
-          <p class="hint-line">Ces notes servent à ton auto-évaluation : repérer la qualité mentale à travailler en premier. Elles sont confidentielles (vues par le capitaine seulement) et il n'y a aucun classement entre joueurs.</p>
+          <p class="hint-line">Ces notes servent à ton auto-évaluation : repérer la qualité mentale à travailler en premier. Elles sont confidentielles : seul le capitaine lit les notes individuelles. L'encadrement voit uniquement le critère le plus faible de l'équipe (à partir de 5 joueurs). Il n'y a aucun classement entre joueurs.</p>
         </fieldset>
 
         <fieldset>
@@ -178,7 +220,7 @@
   </section>
 
 </main>
-<script src="config.js?v=8"></script>
-<script src="app.js?v=8"></script>
+<script src="config.js?v=9"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>
