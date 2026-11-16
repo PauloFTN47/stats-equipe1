@@ -1136,7 +1136,7 @@
   }
 
   // Identifiant de connexion staff (distinct du nom de joueur pour que le trousseau iPhone garde deux entrées séparées).
-  var STAFF_IDS = { 'Paul Fonteneau': 'Capitaine PF', 'Romain Legentil': 'Vice-Capitaine RL', 'David Cesaro': 'Coach DC', 'Max Boucher': 'Jeux MB', 'Nicolas Dupuy': 'Jeux ND', 'Michel Caubet': 'Président MC' };
+  var STAFF_IDS = { 'Paul Fonteneau': 'Capitaine PF', 'Romain Legentil': 'Vice-Capitaine RL' };
   function staffIdOf(name) { return STAFF_IDS[name] || name; }
   function normId(v) { return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
   function staffNameFromId(v) {
