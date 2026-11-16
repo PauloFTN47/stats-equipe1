@@ -358,7 +358,7 @@
   function teamCard(t, season) {
     var c = card('Sélection ' + season, t.period || '');
     var top = el('div', 'role-line');
-    top.appendChild(el('span', 'badge role', t.role || '–'));
+    top.appendChild(roleBadge(t.role || '–'));
     if (t.selectable) top.appendChild(el('span', 'badge ' + (t.selectable === 'Oui' ? 'ok' : 'wait'), 'Sélectionnable : ' + t.selectable));
     c.appendChild(top);
     var dl = el('dl', 'kv');
@@ -1101,11 +1101,21 @@
   }
   $('ios-hint-close').addEventListener('click', function () { save(K.hint, true); $('ios-hint').hidden = true; });
 
-  /* ---------- Encadrement (staff) ---------- */
+  /* ---------- Staff ---------- */
   // Interface réservée au staff : le contrôle des droits est fait par l'API (code individuel + rôle) à chaque requête.
   // Ici, l'interface n'affiche que ce que l'API accepte de renvoyer. Tout texte venu de l'API passe par textContent.
 
   var staffTab = 'sum';
+
+  // Rôles : ordre fixe et une couleur par rôle (Titulaire, Équipier, 3e rôle, Sans rôle).
+  var ROLE_ORDER = ['titulaire', 'equipier', 'remplacant', 'pretendant', 'sans role'];
+  function roleKey(r) { return normId(r); }
+  function roleRank(r) { var i = ROLE_ORDER.indexOf(roleKey(r)); return i < 0 ? ROLE_ORDER.length : i; }
+  function roleClass(r) {
+    var k = roleKey(r);
+    return k === 'titulaire' ? 'r1' : k === 'equipier' ? 'r2' : (k === 'remplacant' || k === 'pretendant') ? 'r3' : 'r4';
+  }
+  function roleBadge(r, text, mini) { return el('span', 'badge role ' + roleClass(r) + (mini ? ' mini' : ''), text || r); }
   state.staff = null; state.ov = null; state.sel = null; state.detail = {}; state.mentalAll = null;
 
   function frDate(iso) { return iso ? String(iso).split('-').reverse().join('/') : ''; }
@@ -1125,8 +1135,18 @@
     setMsg(msgId, err.message, 'err');
   }
 
+  // Identifiant de connexion staff (distinct du nom de joueur pour que le trousseau iPhone garde deux entrées séparées).
+  var STAFF_IDS = { 'capitaine pf': 'Paul Fonteneau', 'vice rl': 'Romain Legentil', 'coach dc': 'David Cesaro', 'jeux mb': 'Max Boucher', 'jeux nd': 'Nicolas Dupuy', 'president mc': 'Michel Caubet' };
+  function normId(v) { return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+  function staffNameFromId(v) {
+    var k = normId(v);
+    if (STAFF_IDS[k] && (state.data.staff || []).indexOf(STAFF_IDS[k]) >= 0) return STAFF_IDS[k];
+    var list = state.data.staff || [];
+    for (var i = 0; i < list.length; i++) if (normId(list[i]) === k) return list[i];
+    return String(v || '').trim();
+  }
+
   function enterStaffLogin(msg) {
-    fill($('slogin-name'), state.data.staff || [], 'Choisis ton nom');
     $('slogin-pin').value = '';
     if (msg) setMsg('slogin-msg', msg, 'err'); else hideMsg('slogin-msg');
     show('staff-login');
@@ -1137,9 +1157,9 @@
   $('slogin-form').addEventListener('submit', async function (ev) {
     ev.preventDefault();
     hideMsg('slogin-msg');
-    var name = $('slogin-name').value;
+    var name = staffNameFromId($('slogin-name').value);
     var pin = $('slogin-pin').value.trim();
-    if (!name) return setMsg('slogin-msg', 'Choisis ton nom.', 'err');
+    if (!name) return setMsg('slogin-msg', 'Saisis ton identifiant staff.', 'err');
     if (!pin) return setMsg('slogin-msg', 'Saisis ton code.', 'err');
     $('slogin-btn').disabled = true;
     $('slogin-btn').textContent = 'Connexion…';
@@ -1271,8 +1291,12 @@
     var dl = el('dl', 'kv');
     kv(dl, 'Joueurs', n);
     kv(dl, 'Sélectionnables', t.nSelectable + ' / ' + n);
-    ['Titulaire', 'Équipier', 'Remplaçant', 'Prétendant', 'Sans rôle'].forEach(function (r) { if (t.roles[r]) kv(dl, r, t.roles[r]); });
     c1.appendChild(dl);
+    var rbox = el('div', 'role-line');
+    Object.keys(t.roles).sort(function (a, b) { return roleRank(a) - roleRank(b); }).forEach(function (r) {
+      if (t.roles[r]) rbox.appendChild(roleBadge(r, r + ' · ' + t.roles[r]));
+    });
+    c1.appendChild(rbox);
     c1.appendChild(el('p', 'hint small', 'Rôles et critères lus dans l’onglet « Equipe 2027 » du fichier. Un joueur sans rôle manque souvent de tours datés dans sa fiche.'));
     body.appendChild(c1);
 
@@ -1294,31 +1318,45 @@
     } else c2.appendChild(el('p', 'empty', 'Tous les joueurs ont saisi récemment.'));
     body.appendChild(c2);
 
-    var c3 = card('Profil de jeu de l’équipe', 'Forts et faibles par rapport à la moyenne de l’équipe (écart d’au moins 0,5 écart-type).');
-    var tb = el('table', 'stats');
-    var head = el('tr');
-    ['Axe', 'Forts', 'Faibles', 'Moyenne'].forEach(function (h) { head.appendChild(el('th', null, h)); });
-    tb.appendChild(head);
-    t.axes.forEach(function (a) {
-      var tr = el('tr');
-      tr.appendChild(el('th', null, a.label));
-      tr.appendChild(el('td', null, a.known >= 4 ? String(a.forts) : '–'));
-      tr.appendChild(el('td', null, a.known >= 4 ? String(a.faibles) : '–'));
-      tr.appendChild(el('td', null, a.ref ? (a.key === 'put' ? num(a.ref.mu, 2) : pct(a.ref.mu)) : 'peu d’informations'));
-      tb.appendChild(tr);
-    });
-    c3.appendChild(tb);
+    var c3 = card('Profil de jeu de l’équipe', 'Pour chaque axe : la moyenne de l’équipe, puis les joueurs les plus forts et les plus faibles par rapport au groupe (valeur entre parenthèses).');
     var fw = el('p', 'focus');
     if (t.weakAxes && t.weakAxes.length) {
-      fw.appendChild(el('b', null, 'Point faible collectif : '));
+      fw.appendChild(el('b', null, 'À travailler en priorité (équipe) : '));
       fw.appendChild(document.createTextNode(t.weakAxes.join(', ')));
     } else fw.appendChild(document.createTextNode('Aucun point faible collectif net pour le moment.'));
     c3.appendChild(fw);
+    t.axes.forEach(function (a) {
+      var rows = ov.players.map(function (p) {
+        var x = p.profile && p.profile.axes && p.profile.axes[a.key];
+        return x && x.z !== null && x.z !== undefined ? { name: p.name, z: x.z, level: x.level, value: x.value } : null;
+      }).filter(Boolean).sort(function (u, v) { return v.z - u.z; });
+      function fmt(v) { return a.key === 'put' ? num(v, 2) : pct(v); }
+      var blk = el('div', 'axis');
+      var hd = el('div', 'axis-head');
+      hd.appendChild(el('b', null, a.label));
+      hd.appendChild(el('span', 'muted', a.ref ? 'Équipe : ' + fmt(a.ref.mu) : 'peu d’informations'));
+      blk.appendChild(hd);
+      [['fort', 'Forts', 'ok'], ['faible', 'Faibles', 'wait']].forEach(function (g) {
+        var who = rows.filter(function (r) { return r.level === g[0]; }).map(function (r) { return r.name + ' (' + fmt(r.value) + ')'; });
+        var ln = el('div', 'axis-line');
+        ln.appendChild(el('span', 'badge ' + g[2], g[1]));
+        ln.appendChild(el('span', who.length ? '' : 'muted', who.length ? who.join(', ') : a.known >= 4 ? 'personne' : 'peu d’informations'));
+        blk.appendChild(ln);
+      });
+      c3.appendChild(blk);
+    });
     var cats = Object.keys(t.categories).sort(function (a, b) { return t.categories[b] - t.categories[a] || a.localeCompare(b, 'fr'); });
-    var catBox = el('div', 'role-line');
-    cats.forEach(function (k) { catBox.appendChild(el('span', catClass(k === 'Peu d’informations' ? null : k), k + ' · ' + t.categories[k])); });
-    c3.appendChild(catBox);
-    c3.appendChild(el('p', 'hint small', 'Profil calculé sur les 12 derniers tours avec statistiques complètes. Provisoire en dessous de 8 tours, non classé en dessous de 4.'));
+    if (cats.length) {
+      c3.appendChild(el('p', 'focus', 'Catégories de joueur'));
+      cats.forEach(function (k) {
+        var who = ov.players.filter(function (p) { return (p.profile && p.profile.category || 'Peu d’informations') === k; }).map(function (p) { return p.name; });
+        var ln = el('div', 'axis-line');
+        ln.appendChild(el('span', catClass(k === 'Peu d’informations' ? null : k), k));
+        ln.appendChild(el('span', who.length ? '' : 'muted', who.join(', ')));
+        c3.appendChild(ln);
+      });
+    }
+    c3.appendChild(el('p', 'hint small', 'Profil calculé sur les 12 derniers tours avec statistiques complètes. Provisoire en dessous de 8 tours, non classé en dessous de 4. Fort à +0,5 écart-type ou plus, faible à −0,5 ou moins.'));
     body.appendChild(c3);
 
     var c4 = card('Mental : critère le plus faible de l’équipe', 'Moyenne des joueurs ayant au moins 2 évaluations, affichée à partir de 5 joueurs. Aucune note individuelle.');
@@ -1348,12 +1386,15 @@
     body.textContent = '';
     var ov = state.ov;
     var list = el('div', 'plist');
-    ov.players.forEach(function (p) {
+    var ordered = ov.players.map(function (p, i) { return { p: p, i: i }; }).sort(function (a, b) {
+      return roleRank(a.p.selection && a.p.selection.role) - roleRank(b.p.selection && b.p.selection.role) || a.i - b.i;
+    }).map(function (x) { return x.p; });
+    ordered.forEach(function (p) {
       var b = el('button', 'pitem');
       b.type = 'button';
       var top = el('div', 'ptop');
       top.appendChild(el('span', 'pname', p.name));
-      if (p.selection && p.selection.role) top.appendChild(el('span', 'badge role', p.selection.role));
+      if (p.selection && p.selection.role) top.appendChild(roleBadge(p.selection.role));
       b.appendChild(top);
       b.appendChild(catBadges(p.profile));
       var line = el('div', 'pline');
@@ -1403,7 +1444,7 @@
     var head = card(name);
     if (p && p.selection && p.selection.role) {
       var rl = el('div', 'role-line');
-      rl.appendChild(el('span', 'badge role', p.selection.role));
+      rl.appendChild(roleBadge(p.selection.role));
       if (p.selection.selectable) rl.appendChild(el('span', 'badge ' + (p.selection.selectable === 'Oui' ? 'ok' : 'wait'), 'Sélectionnable : ' + p.selection.selectable));
       head.appendChild(rl);
       var dl0 = el('dl', 'kv');
@@ -1471,7 +1512,7 @@
   function renderRanking(ov) {
     var body = $('s-rank-body');
     body.textContent = '';
-    var c = card('Forme', 'Moyenne de l’écart au SSS sur les 5 derniers tours de compétition (3 minimum). Plus bas = mieux. ▲ = progression contre les 5 tours précédents.');
+    var c = card('Forme', 'Moyenne de l’écart au SSS sur les 5 derniers tours de compétition de la saison en cours (depuis le ' + frDate(ov.period.start) + ', 3 minimum). Plus bas = mieux. ▲ = progression contre les 5 tours précédents de la saison.');
     var ranked = ov.players.filter(function (p) { return p.rank !== null; }).sort(function (a, b) { return a.rank - b.rank; });
     if (ranked.length) {
       var tb = el('table', 'stats rank');
@@ -1483,7 +1524,7 @@
         tr.appendChild(el('td', null, String(p.rank)));
         var tn = el('td', 'nm');
         tn.appendChild(el('div', null, p.name));
-        if (p.selection && p.selection.role) tn.appendChild(el('small', null, p.selection.role));
+        if (p.selection && p.selection.role) { var rb = el('div'); rb.appendChild(roleBadge(p.selection.role, null, true)); tn.appendChild(rb); }
         tr.appendChild(tn);
         tr.appendChild(el('td', 'cur', signed(p.form.avg5)));
         var te = el('td');

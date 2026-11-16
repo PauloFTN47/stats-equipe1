@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=13">
+<link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
 <main>
@@ -52,26 +52,26 @@
       <button type="submit" id="login-btn">Se connecter</button>
       <div class="msg" id="login-msg" role="alert" hidden></div>
     </form>
-    <button type="button" class="link" id="to-staff" hidden>Accès encadrement</button>
+    <button type="button" class="link" id="to-staff" hidden>Accès staff</button>
   </section>
 
-  <!-- Connexion encadrement -->
+  <!-- Connexion staff -->
   <section id="screen-staff-login" hidden>
     <img class="logo" src="icons/logo-256.png" alt="Casteljaloux Golf Club" width="128" height="128">
-    <h1>Encadrement</h1>
-    <p class="sub">Connecte-toi avec ton nom et ton code d'encadrement (différent d'un code joueur).</p>
+    <h1>Staff</h1>
+    <p class="sub">Connecte-toi avec ton identifiant staff et ton code staff (différent d'un code joueur).</p>
     <form id="slogin-form" class="card" novalidate autocomplete="off">
-      <label for="slogin-name">Nom</label>
-      <select id="slogin-name" required></select>
-      <label for="slogin-pin">Code d'encadrement</label>
-      <input id="slogin-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="6 chiffres">
+      <label for="slogin-name">Identifiant staff</label>
+      <input id="slogin-name" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="ex. capitaine PF" required>
+      <label for="slogin-pin">Code staff</label>
+      <input id="slogin-pin" name="password" type="password" inputmode="numeric" autocomplete="current-password" placeholder="6 chiffres">
       <button type="submit" id="slogin-btn">Se connecter</button>
       <div class="msg" id="slogin-msg" role="alert" hidden></div>
     </form>
     <button type="button" class="link" id="back-player">Retour à l'accès joueur</button>
   </section>
 
-  <!-- Encadrement -->
+  <!-- Staff -->
   <section id="screen-staff" hidden>
     <header class="bar">
       <img class="logo-sm" src="icons/logo-256.png" alt="" width="40" height="40">
@@ -197,7 +197,7 @@
           <p class="hint-line">Note chaque critère de 1 à 4 : <b>4</b> très bon · <b>3</b> bon · <b>2</b> moyen · <b>1</b> mauvais.</p>
           <div id="mental-list"></div>
           <div class="live" id="mental-live" aria-live="polite"></div>
-          <p class="hint-line">Ces notes servent à ton auto-évaluation : repérer la qualité mentale à travailler en premier. Elles sont confidentielles : seul le capitaine lit les notes individuelles. L'encadrement voit uniquement le critère le plus faible de l'équipe (à partir de 5 joueurs). Il n'y a aucun classement entre joueurs.</p>
+          <p class="hint-line">Ces notes servent à ton auto-évaluation : repérer la qualité mentale à travailler en premier. Elles sont confidentielles : seul le capitaine lit les notes individuelles. Le staff voit uniquement le critère le plus faible de l'équipe (à partir de 5 joueurs). Il n'y a aucun classement entre joueurs.</p>
         </fieldset>
 
         <fieldset>
@@ -224,7 +224,7 @@
   </section>
 
 </main>
-<script src="config.js?v=13"></script>
-<script src="app.js?v=13"></script>
+<script src="config.js?v=14"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>

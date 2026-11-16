@@ -12,9 +12,9 @@ Ce dépôt ne contient aucun secret : les codes personnels sont stockés côté 
 - `config.js` : adresse de l'API Apps Script
 - `manifest.webmanifest`, `sw.js`, `icons/` : installation sur l'écran d'accueil et mode hors ligne
 
-## Encadrement
+## Staff
 
-Un onglet réservé au staff (capitaine, vice-capitaine, coach, capitaines des jeux, président) : lien « Accès encadrement » sur l'écran de connexion.
+Un onglet réservé au staff (capitaine, vice-capitaine, coach, capitaines des jeux, président) : lien « Accès staff » sur l'écran de connexion.
 Chaque membre a un code individuel distinct des codes joueurs. Les droits sont contrôlés par l'API à chaque requête, pas par l'interface :
 synthèse d'équipe, fiche joueur, classement, calendrier pour tous ; notes mentales individuelles pour le capitaine seul.
 

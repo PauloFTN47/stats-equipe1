@@ -222,3 +222,23 @@ table.rank th:nth-child(2) { text-align: left; }
 .rdetail { padding: 6px 8px 12px; }
 .rdetail .kv { margin-top: 0; }
 table.stats th { font-size: .8rem; }
+
+/* Rôles : une couleur par rôle (Titulaire, Équipier, 3e rôle, Sans rôle) */
+.badge.role.r1 { background: #1f6b3a; color: #fff; }
+.badge.role.r2 { background: #1d5fa8; color: #fff; }
+.badge.role.r3 { background: #b86e00; color: #fff; }
+.badge.role.r4 { background: #6b7280; color: #fff; }
+.badge.mini { font-size: .72rem; padding: 2px 8px; margin-top: 3px; }
+@media (prefers-color-scheme: dark) {
+  .badge.role.r1 { background: #2f8f56; color: #fff; }
+  .badge.role.r2 { background: #3b82d6; color: #fff; }
+  .badge.role.r3 { background: #d99a2b; color: #1a1100; }
+  .badge.role.r4 { background: #8b94a4; color: #0f1511; }
+}
+
+/* Synthèse : profil de jeu par axe */
+.axis { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.axis-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.axis-line { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; font-size: .9rem; }
+.axis-line .badge { flex: none; }
+#screen-staff p.focus { margin: 12px 0 4px; }
