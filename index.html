@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Stats Castel</title>
+<title>Joueur CASTEL</title>
 <meta name="description" content="Saisie des statistiques de l'équipe 1 de golf de Casteljaloux">
 <meta name="theme-color" content="#1f6b3a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Stats Castel">
+<meta name="apple-mobile-web-app-title" content="Joueur CASTEL">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -21,7 +21,7 @@
   <!-- Chargement -->
   <section id="screen-loading">
     <img class="logo" src="icons/logo-256.png" alt="Casteljaloux Golf Club" width="128" height="128">
-    <h1>Stats Équipe 1</h1>
+    <h1>Joueur CASTEL</h1>
     <p class="sub" id="loading-text">Chargement…</p>
     <button type="button" id="retry" hidden>Réessayer</button>
   </section>
@@ -29,7 +29,7 @@
   <!-- Clé d'accès (si le lien reçu ne l'a pas transmise) -->
   <section id="screen-key" hidden>
     <img class="logo" src="icons/logo-256.png" alt="Casteljaloux Golf Club" width="128" height="128">
-    <h1>Stats Équipe 1</h1>
+    <h1>Joueur CASTEL</h1>
     <p class="sub">Saisis la clé d'accès envoyée par le capitaine (8 caractères, à ne saisir qu'une fois).</p>
     <form id="key-form" class="card" novalidate autocomplete="off">
       <label for="key-input">Clé d'accès</label>
@@ -42,7 +42,7 @@
   <!-- Connexion -->
   <section id="screen-login" hidden>
     <img class="logo" src="icons/logo-256.png" alt="Casteljaloux Golf Club" width="128" height="128">
-    <h1>Stats Équipe 1</h1>
+    <h1>Joueur CASTEL</h1>
     <p class="sub">Connecte-toi avec ton nom et ton code personnel.</p>
     <form id="login-form" class="card" novalidate autocomplete="off">
       <label for="login-player">Joueur</label>
@@ -102,6 +102,13 @@
           <input id="name" type="text" maxlength="60" required>
           <label for="course">Parcours</label>
           <select id="course" required></select>
+          <div id="other-box" hidden>
+            <label for="course-other">Nom du parcours <span class="hint">celui qui n'est pas dans la liste</span></label>
+            <input id="course-other" type="text" maxlength="60" autocomplete="off">
+            <label for="par">Par du parcours <span class="hint">écrit sur la carte de score</span></label>
+            <input id="par" type="number" inputmode="numeric" min="60" max="80" step="1" value="72">
+            <p class="hint-line">Le capitaine ajoutera le SSS plus tard : l'écart au SSS se calculera alors tout seul.</p>
+          </div>
         </fieldset>
 
         <fieldset>

@@ -1,4 +1,4 @@
-# Stats Équipe 1 - Casteljaloux
+# Joueur CASTEL - Équipe 1 Casteljaloux
 
 Appli installable (PWA) de saisie des statistiques de l'équipe 1.
 Chaque joueur se connecte avec son nom et un code personnel, saisit ses tours et consulte les siens.

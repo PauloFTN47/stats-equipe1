@@ -4,6 +4,7 @@
   var API = (window.APP_CONFIG && window.APP_CONFIG.API_URL) || '';
   var SIM = /[?&]simulation=1/.test(window.location.search);   // ?simulation=1 : vérifie tout, n'écrit rien
   var K = { key: 'stats.key', init: 'stats.init', session: 'stats.session', queue: 'stats.queue', recent: 'stats.recent', hint: 'stats.hint' };
+  var OTHER = '__autre__';   // valeur de l'option « Autre parcours »
   var TYPES = { 1: 'Compétition', 2: 'Tour annoncé', 3: 'Entraînement (non compté)' };
   var state = { data: null, session: null, armed: false, flushing: false };
 
@@ -75,6 +76,7 @@
     var s = Math.abs(r).toFixed(1).replace('.', ',');
     return r > 0 ? '+' + s : (r < 0 ? '-' + s : s);
   }
+  function signedPar(n) { return n > 0 ? '+' + n : String(n); }   // écart au par : toujours un entier
   function signedInt(s) {
     var n = parseFloat(String(s).replace(',', '.'));
     return isNaN(n) ? String(s) : (n > 0 ? '+' + n : String(n));
@@ -146,6 +148,9 @@
 
   function enterApp() {
     fill($('course'), (state.data.courses || []).map(function (c) { return c.name; }), 'Choisis le parcours');
+    var other = document.createElement('option');
+    other.value = OTHER; other.textContent = 'Autre parcours (pas dans la liste)…';
+    $('course').appendChild(other);
     $('date').value = state.data.today;
     $('date').max = state.data.today;
     $('who').textContent = state.session.player;
@@ -244,7 +249,7 @@
 
   /* ---------- Formulaire ---------- */
 
-  var FIELDS = ['date', 'type', 'name', 'course', 'strokes', 'fairways', 'greens', 'putts', 'chipMade', 'chipTried', 'comment'];
+  var FIELDS = ['date', 'type', 'name', 'course', 'course-other', 'par', 'strokes', 'fairways', 'greens', 'putts', 'chipMade', 'chipTried', 'comment'];
 
   function val(id) { return $(id).value.trim(); }
 
@@ -260,6 +265,8 @@
     if (!val('date')) throw new Error('Choisis la date du tour.');
     if (!val('name')) throw new Error('Saisis le nom du tour.');
     if (!val('course')) throw new Error('Choisis le parcours.');
+    var isOther = val('course') === OTHER;
+    if (isOther && !val('course-other')) throw new Error('Parcours hors liste : indique le nom du parcours.');
     var p = {
       date: val('date'), type: Number(val('type')), name: val('name'), course: val('course'),
       strokes: intField('strokes', 50, 130, 'Score brut', true),
@@ -270,6 +277,10 @@
       chipTried: intField('chipTried', 1, 30, 'Chip-putts tentés', false),
       comment: val('comment')
     };
+    if (isOther) {
+      p.courseOther = val('course-other');
+      p.par = intField('par', 60, 80, 'Par du parcours', true);
+    }
     var n = [p.fairways, p.greens, p.putts].filter(function (v) { return v !== ''; }).length;
     if (n !== 0 && n !== 3) throw new Error('Fairways, greens et putts vont ensemble : renseigne les trois ou aucun.');
     if ((p.chipMade === '') !== (p.chipTried === '')) throw new Error('Chip-putts : renseigne les réussis et les tentés, ou aucun des deux.');
@@ -278,21 +289,32 @@
   }
 
   function updateLive() {
+    var isOther = $('course').value === OTHER;
+    $('other-box').hidden = !isOther;
+    if (isOther) {
+      var par = Number($('par').value);
+      if (!$('strokes').value || !isFinite(par)) { $('live').textContent = 'Parcours hors liste : indique son nom et son par. Le SSS sera ajouté plus tard.'; return; }
+      $('live').textContent = 'Au par : ' + signedPar(Number($('strokes').value) - par) + '  ·  Écart au SSS : calculé quand le capitaine aura ajouté le parcours.';
+      return;
+    }
     var c = courseByName($('course').value);
     if (!c) { $('live').textContent = 'Choisis le parcours et saisis ton score.'; return; }
     var sss = String(c.sss).replace('.', ',');
     if (!$('strokes').value) { $('live').textContent = c.name + ' : par ' + c.par + ', SSS ' + sss + '.'; return; }
     var s = Number($('strokes').value);
-    $('live').textContent = 'Au par : ' + signed(s - c.par) + '  ·  Écart au SSS (' + sss + ') : ' + signed(s - c.sss);
+    $('live').textContent = 'Au par : ' + signedPar(s - c.par) + '  ·  Écart au SSS (' + sss + ') : ' + signed(s - c.sss);
   }
 
   function recapNode(p) {
-    var c = courseByName(p.course);
+    var other = p.course === OTHER;
+    var c = other ? null : courseByName(p.course);
     var rows = [
       ['Joueur', state.session.player],
       ['Tour', p.name + ' · ' + p.date.split('-').reverse().join('/') + ' · ' + TYPES[p.type]],
-      ['Parcours', p.course],
-      ['Score', p.strokes + ' coups (' + signed(p.strokes - c.par) + ' au par, ' + signed(p.strokes - c.sss) + ' au SSS)']
+      ['Parcours', other ? p.courseOther + ' (hors liste, par ' + p.par + ')' : p.course],
+      ['Score', other
+        ? p.strokes + ' coups (' + signedPar(p.strokes - p.par) + ' au par, écart au SSS calculé plus tard)'
+        : p.strokes + ' coups (' + signedPar(p.strokes - c.par) + ' au par, ' + signed(p.strokes - c.sss) + ' au SSS)']
     ];
     if (p.fairways !== '') rows.push(['Stats', 'Fairways ' + p.fairways + '/14 · Greens ' + p.greens + '/18 · Putts ' + p.putts]);
     if (p.chipTried !== '') rows.push(['Chip-putts', p.chipMade + '/' + p.chipTried]);
@@ -314,7 +336,7 @@
   }
 
   function clearForm() {
-    ['name', 'strokes', 'fairways', 'greens', 'putts', 'chipMade', 'chipTried', 'comment'].forEach(function (id) { $(id).value = ''; });
+    ['name', 'course-other', 'strokes', 'fairways', 'greens', 'putts', 'chipMade', 'chipTried', 'comment'].forEach(function (id) { $(id).value = ''; });
     updateLive();
   }
 
@@ -349,9 +371,10 @@
       var res = await post(body);
       if (res.ok) {
         if (!SIM) { save(K.recent, res.recent); renderRecent(res.recent); }
+        var ec = res.ecart ? res.ecart : 'calculé plus tard (parcours à ajouter)';
         var txt = SIM
-          ? 'Simulation réussie, rien n’a été écrit. Écart au SSS : ' + res.ecart + (res.trp ? ' · TRP : ' + res.trp : '') + ' · ligne prévue : ' + res.row + '.'
-          : 'Enregistré. Écart au SSS : ' + res.ecart + (res.trp ? ' · TRP : ' + res.trp : '') + (res.conv ? ' · Conv. green : ' + res.conv : '') + '.';
+          ? 'Simulation réussie, rien n’a été écrit. Écart au SSS : ' + ec + (res.trp ? ' · TRP : ' + res.trp : '') + ' · ligne prévue : ' + res.row + '.'
+          : 'Enregistré. Écart au SSS : ' + ec + (res.trp ? ' · TRP : ' + res.trp : '') + (res.conv ? ' · Conv. green : ' + res.conv : '') + '.';
         if (!SIM && res.remaining <= 5) txt += ' Il te reste ' + res.remaining + ' ligne(s) dans ta fiche : préviens le capitaine.';
         setMsg('msg', txt, 'ok');
         clearForm();
