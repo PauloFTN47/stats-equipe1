@@ -3,10 +3,10 @@
 
   var API = (window.APP_CONFIG && window.APP_CONFIG.API_URL) || '';
   var SIM = /[?&]simulation=1/.test(window.location.search);   // ?simulation=1 : vérifie tout, n'écrit rien
-  var K = { key: 'stats.key', init: 'stats.init', session: 'stats.session', queue: 'stats.queue', recent: 'stats.recent', hint: 'stats.hint' };
+  var K = { key: 'stats.key', init: 'stats.init', session: 'stats.session', queue: 'stats.queue', recent: 'stats.recent', hint: 'stats.hint', space: 'stats.space', cal: 'stats.cal' };
   var OTHER = '__autre__';   // valeur de l'option « Autre parcours »
   var TYPES = { 1: 'Compétition', 2: 'Tour annoncé', 3: 'Entraînement (non compté)' };
-  var state = { data: null, session: null, armed: false, flushing: false };
+  var state = { data: null, session: null, armed: false, flushing: false, calFilter: 'all' };
 
   function $(id) { return document.getElementById(id); }
   function load(k, fallback) { try { var v = window.localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
@@ -66,7 +66,8 @@
     sel.appendChild(o);
     items.forEach(function (v) {
       var op = document.createElement('option');
-      op.value = v; op.textContent = v;
+      var isObj = v && typeof v === 'object';
+      op.value = isObj ? v.value : v; op.textContent = isObj ? v.label : v;
       sel.appendChild(op);
     });
   }
@@ -81,6 +82,9 @@
     var n = parseFloat(String(s).replace(',', '.'));
     return isNaN(n) ? String(s) : (n > 0 ? '+' + n : String(n));
   }
+
+  // « Casteljaloux · Noirs » et « Casteljaloux (Championnat du club) · Blancs » : mêmes clubs, repères et SSS différents
+  function courseLabel(c) { return c.name + (c.tees ? ' · ' + c.tees : '') + (c.prov ? ' · SSS provisoire' : ''); }
 
   function courseByName(n) {
     return (state.data.courses || []).filter(function (c) { return c.name === n; })[0];
@@ -147,7 +151,7 @@
   }
 
   function enterApp() {
-    fill($('course'), (state.data.courses || []).map(function (c) { return c.name; }), 'Choisis le parcours');
+    fill($('course'), (state.data.courses || []).map(function (c) { return { value: c.name, label: courseLabel(c) }; }), 'Choisis le parcours');
     var other = document.createElement('option');
     other.value = OTHER; other.textContent = 'Autre parcours (pas dans la liste)…';
     $('course').appendChild(other);
@@ -155,7 +159,6 @@
     $('date').max = state.data.today;
     $('who').textContent = state.session.player;
     $('sim').hidden = !SIM;
-    renderRecent(load(K.recent, []));
     updateLive();
     updatePending();
     showIosHint();
@@ -167,7 +170,7 @@
   async function refreshMe() {
     try {
       var res = await post({ action: 'me', player: state.session.player, pin: state.session.pin });
-      if (res.ok) { save(K.recent, res.recent); renderRecent(res.recent); }
+      if (res.ok) { save(K.recent, res.recent); }
       else if (res.error && res.error.code === 'AUTH') { logout(); }
     } catch (e) { /* hors ligne */ }
   }
@@ -189,6 +192,7 @@
         state.session = { player: player, pin: pin };
         save(K.session, state.session);
         save(K.recent, res.recent);
+        drop(K.space); drop(K.cal);
         enterApp();
       } else {
         setMsg('login-msg', res.error ? res.error.message : 'Connexion refusée.', 'err');
@@ -203,7 +207,7 @@
 
   function logout() {
     drop(K.session);
-    drop(K.recent);
+    drop(K.recent); drop(K.space); drop(K.cal);
     state.session = null;
     enterLogin();
   }
@@ -212,39 +216,401 @@
 
   /* ---------- Onglets ---------- */
 
-  function selectTab(name) {
-    $('view-form').hidden = name !== 'form';
-    $('view-recent').hidden = name !== 'recent';
-    $('tab-form').setAttribute('aria-selected', String(name === 'form'));
-    $('tab-recent').setAttribute('aria-selected', String(name === 'recent'));
-  }
-  $('tab-form').addEventListener('click', function () { selectTab('form'); });
-  $('tab-recent').addEventListener('click', function () { selectTab('recent'); });
+  var TABS = ['form', 'space', 'cal'];
 
-  function renderRecent(list) {
-    var ul = $('recent-list');
-    ul.innerHTML = '';
-    if (!list || !list.length) {
-      var li0 = document.createElement('li');
-      li0.textContent = 'Aucun tour enregistré pour le moment.';
-      ul.appendChild(li0);
-      return;
+  function selectTab(name) {
+    TABS.forEach(function (t) {
+      $('view-' + t).hidden = t !== name;
+      $('tab-' + t).setAttribute('aria-selected', String(t === name));
+    });
+    if (name === 'space') loadSpace();
+    if (name === 'cal') loadCal();
+  }
+  TABS.forEach(function (t) { $('tab-' + t).addEventListener('click', function () { selectTab(t); }); });
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+  function svgEl(tag, attrs) {
+    var e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+    return e;
+  }
+  function num(x, d) { return (x === null || x === undefined || !isFinite(x)) ? '–' : x.toFixed(d).replace('.', ','); }
+  function pct(x) { return (x === null || x === undefined || !isFinite(x)) ? '–' : Math.round(x * 100) + ' %'; }
+
+  /* ---------- Mon espace ---------- */
+
+  async function loadSpace() {
+    if (!state.session) return;
+    var cached = load(K.space, null);
+    if (cached) { renderSpace(cached); hideMsg('space-msg'); }
+    else { $('space-body').textContent = ''; setMsg('space-msg', 'Chargement…', 'ok'); }
+    try {
+      var res = await post({ action: 'space', player: state.session.player, pin: state.session.pin });
+      if (!state.session) return;
+      if (res.ok) { save(K.space, res); save(K.recent, res.recent); hideMsg('space-msg'); renderSpace(res); }
+      else handleServerError(res.error || { code: 'SERVER', message: 'Erreur inconnue.' }, 'space-msg');
+    } catch (e) {
+      if (cached) setMsg('space-msg', 'Hors ligne : données de la dernière connexion.', 'ok');
+      else setMsg('space-msg', 'Pas de réseau. Ton espace s’affichera dès que le réseau revient.', 'err');
     }
+  }
+
+  function card(title, hint) {
+    var c = el('section', 'card');
+    if (title) c.appendChild(el('h2', null, title));
+    if (hint) c.appendChild(el('p', 'hint small', hint));
+    return c;
+  }
+
+  function renderSpace(d) {
+    var body = $('space-body');
+    body.textContent = '';
+    if (d.team) body.appendChild(teamCard(d.team, d.season));
+    body.appendChild(averagesCard(d.seasons || []));
+
+    var ch = d.charts || {};
+    var c1 = card('Écart au SSS en compétition', 'Coups au-dessus du SSS : plus bas = mieux. Les lignes pointillées sont les plafonds de moyenne par rôle.');
+    if (ch.ecart && ch.ecart.length) {
+      var caps = ch.ecart[ch.ecart.length - 1].caps || [];
+      var refs = [];
+      ['Titulaire', 'Équipier', 'Remplaçant'].forEach(function (n, i) { if (caps[i] !== null && caps[i] !== undefined) refs.push({ v: caps[i], label: n }); });
+      c1.appendChild(lineChart({
+        points: ch.ecart, refs: refs, minSpan: 4, digits: 1, signed: true,
+        names: ['Tour', 'Moyenne glissante'], aria: 'Écart au SSS par tour de compétition'
+      }));
+    } else c1.appendChild(el('p', 'empty', 'Pas encore de tour de compétition cette saison.'));
+    body.appendChild(c1);
+
+    var c2 = card('Putting : TRP par tour', 'Sous 1,00 = tu putts mieux qu’attendu.');
+    if (ch.trp && ch.trp.length) {
+      c2.appendChild(lineChart({
+        points: ch.trp, refs: [{ v: 1, label: 'Repère 1,00' }], minSpan: 0.4, digits: 2, signed: false,
+        names: ['Tour', 'Moyenne glissante'], aria: 'TRP par tour'
+      }));
+    } else c2.appendChild(el('p', 'empty', 'Pas encore de tour avec statistiques de putting.'));
+    body.appendChild(c2);
+
+    var c3 = card('Profil de jeu', 'Saison précédente et saison en cours : fairways, greens en régulation, chip-putts réussis.');
+    if (ch.profile && ch.profile.length) c3.appendChild(barChart(ch.profile));
+    else c3.appendChild(el('p', 'empty', 'Pas encore de statistiques de profil.'));
+    body.appendChild(c3);
+
+    var c4 = card('Mes derniers tours');
+    c4.appendChild(roundsList(d.recent || []));
+    c4.appendChild(el('p', 'hint small', 'Lecture seule. Pour corriger un tour, préviens le capitaine.'));
+    body.appendChild(c4);
+  }
+
+  function teamCard(t, season) {
+    var c = card('Sélection ' + season, t.period || '');
+    var top = el('div', 'role-line');
+    top.appendChild(el('span', 'badge role', t.role || '–'));
+    if (t.selectable) top.appendChild(el('span', 'badge ' + (t.selectable === 'Oui' ? 'ok' : 'wait'), 'Sélectionnable : ' + t.selectable));
+    c.appendChild(top);
+    var dl = el('dl', 'kv');
+    [['Moyenne contre le SSS', t.avg], ['Tours retenus', t.retained], ['Tours de compétition', t.comp]].forEach(function (r) {
+      dl.appendChild(el('dt', null, r[0]));
+      dl.appendChild(el('dd', null, r[1] === '' || r[1] === undefined ? '–' : r[1]));
+    });
+    c.appendChild(dl);
+    if (t.missing && t.selectable !== 'Oui') c.appendChild(el('p', 'hint small', t.missing));
+    return c;
+  }
+
+  function averagesCard(seasons) {
+    var c = card('Mes moyennes', 'Compétitions et tours annoncés (les entraînements ne comptent pas).');
+    var cur = seasons[1] || {}, prev = seasons[0] || {};
+    var t = el('table', 'stats');
+    var head = el('tr');
+    head.appendChild(el('th', null, ''));
+    head.appendChild(el('th', null, prev.label || ''));
+    head.appendChild(el('th', 'cur', cur.label || ''));
+    t.appendChild(head);
+    var rows = [
+      ['Tours', function (s) { return s.n === undefined ? '–' : String(s.n); }],
+      ['Fairways', function (s) { return pct(s.fairways); }],
+      ['Greens en régul.', function (s) { return pct(s.greens); }],
+      ['Putts par tour', function (s) { return num(s.putts, 1); }],
+      ['Chip-putts réussis', function (s) { return pct(s.chip); }],
+      ['TRP', function (s) { return num(s.trp, 2); }],
+      ['Conv. green', function (s) { return num(s.conv, 2); }],
+      ['Écart au SSS (compét.)', function (s) { return (s.ecart === null || s.ecart === undefined) ? '–' : signed(s.ecart); }]
+    ];
+    rows.forEach(function (r) {
+      var tr = el('tr');
+      tr.appendChild(el('th', null, r[0]));
+      tr.appendChild(el('td', null, r[1](prev)));
+      tr.appendChild(el('td', 'cur', r[1](cur)));
+      t.appendChild(tr);
+    });
+    c.appendChild(t);
+    c.appendChild(el('p', 'hint small', 'TRP = putts réels ÷ putts attendus (sous 1,00 : bon putting). Conv. green = greens en régul. ÷ (fairways touchés + par 3) : au-dessus de 1,00, tu touches des greens même sans fairway.'));
+    return c;
+  }
+
+  function roundsList(list) {
+    var ul = el('ul', 'rounds');
+    if (!list || !list.length) { ul.appendChild(el('li', null, 'Aucun tour enregistré pour le moment.')); return ul; }
     list.forEach(function (t) {
-      var li = document.createElement('li');
-      var left = document.createElement('div');
-      var title = document.createElement('div'); title.className = 't'; title.textContent = t.name;
-      var sub = document.createElement('div'); sub.className = 's';
-      sub.textContent = (t.date || 'Saison 2026') + ' · ' + t.course;
-      left.appendChild(title); left.appendChild(sub);
-      var right = document.createElement('div'); right.className = 'r';
-      right.textContent = signedInt(t.score);
-      var small = document.createElement('small');
-      small.textContent = 'SSS ' + (t.ecart || '-') + (t.trp ? ' · TRP ' + t.trp : '');
-      right.appendChild(small);
+      var li = el('li');
+      var left = el('div');
+      left.appendChild(el('div', 't', t.name));
+      left.appendChild(el('div', 's', (t.date || 'Saison 2026') + ' · ' + t.course));
+      var right = el('div', 'r', signedInt(t.score));
+      right.appendChild(el('small', null, 'SSS ' + (t.ecart || '-') + (t.trp ? ' · TRP ' + t.trp : '')));
       li.appendChild(left); li.appendChild(right);
       ul.appendChild(li);
     });
+    return ul;
+  }
+
+  /* ---------- Graphiques (SVG, sans bibliothèque) ---------- */
+
+  function niceStep(span, count) {
+    var rough = span / count;
+    var mag = Math.pow(10, Math.floor(Math.log(rough) / Math.LN10));
+    var n = rough / mag;
+    return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * mag;
+  }
+
+  function legend(items) {
+    var l = el('div', 'legend');
+    items.forEach(function (it) {
+      var s = el('span', 'lg');
+      s.appendChild(el('i', it.cls));
+      s.appendChild(document.createTextNode(it.label));
+      l.appendChild(s);
+    });
+    return l;
+  }
+
+  // o : { points:[{label, v, avg}], refs:[{v, label}], minSpan, digits, signed, names:[série 1, série 2], aria }
+  function lineChart(o) {
+    var W = 320, H = 200, L = 40, R = 12, T = 12, B = 26;
+    var pts = o.points, n = pts.length;
+    var vals = [];
+    pts.forEach(function (p) { vals.push(p.v); if (p.avg !== null && p.avg !== undefined) vals.push(p.avg); });
+    (o.refs || []).forEach(function (r) { vals.push(r.v); });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    if (hi - lo < o.minSpan) { var mid = (hi + lo) / 2; lo = mid - o.minSpan / 2; hi = mid + o.minSpan / 2; }
+    var pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+    var step = niceStep(hi - lo, 4);
+    var i0 = Math.floor(lo / step), i1 = Math.ceil(hi / step);
+    var t0 = i0 * step, t1 = i1 * step;
+    var X = function (i) { return n === 1 ? (L + W - R) / 2 : L + i * (W - L - R) / (n - 1); };
+    var Y = function (v) { return T + (t1 - v) / (t1 - t0) * (H - T - B); };
+    var fmtV = function (v) { var s = num(v, o.digits); return o.signed && v > 0 ? '+' + s : s; };
+
+    var box = el('div', 'chart');
+    var svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': o.aria });
+    for (var k = i0; k <= i1; k++) {
+      var tv = k * step, y = Y(tv);
+      svg.appendChild(svgEl('line', { x1: L, x2: W - R, y1: y, y2: y, 'class': 'grid' }));
+      var lab = svgEl('text', { x: L - 5, y: y + 3, 'text-anchor': 'end', 'class': 'ax' });
+      lab.textContent = fmtV(Math.round(tv * 1000) / 1000);
+      svg.appendChild(lab);
+    }
+    (o.refs || []).forEach(function (r) {
+      var y = Y(r.v);
+      svg.appendChild(svgEl('line', { x1: L, x2: W - R, y1: y, y2: y, 'class': 'ref' }));
+      var t = svgEl('text', { x: W - R - 2, y: y - 3, 'text-anchor': 'end', 'class': 'ax ref-lab' });
+      t.textContent = r.label;
+      svg.appendChild(t);
+    });
+    var xl = function (i) { var m = /· (.+)$/.exec(pts[i].label); return m ? m[1] : 'T' + (i + 1); };
+    var xi = n <= 1 ? [0] : n <= 4 ? [0, n - 1] : [0, Math.floor((n - 1) / 2), n - 1];
+    xi.forEach(function (i) {
+      var t = svgEl('text', { x: X(i), y: H - 8, 'text-anchor': i === 0 && n > 1 ? 'start' : (i === n - 1 && n > 1 ? 'end' : 'middle'), 'class': 'ax' });
+      t.textContent = xl(i);
+      svg.appendChild(t);
+    });
+    var path = function (key) {
+      var d = '';
+      pts.forEach(function (p, i) { if (p[key] !== null && p[key] !== undefined) d += (d ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(p[key]).toFixed(1); });
+      return d;
+    };
+    if (n > 1) {
+      svg.appendChild(svgEl('path', { d: path('avg'), 'class': 'ln ln-2' }));
+      svg.appendChild(svgEl('path', { d: path('v'), 'class': 'ln ln-1' }));
+    }
+    var dots = [];
+    var cap = el('div', 'cap');
+    var select = function (i) {
+      dots.forEach(function (c, j) { c.setAttribute('r', j === i ? 5.5 : 3.5); c.setAttribute('class', 'pt' + (j === i ? ' sel' : '')); });
+      var p = pts[i];
+      cap.textContent = p.label + ' : ' + fmtV(p.v) + (p.avg !== null && p.avg !== undefined ? ' · moyenne glissante ' + fmtV(p.avg) : '');
+    };
+    pts.forEach(function (p, i) {
+      var dot = svgEl('circle', { cx: X(i), cy: Y(p.v), r: 3.5, 'class': 'pt' });
+      dots.push(dot);
+      svg.appendChild(dot);
+    });
+    pts.forEach(function (p, i) {
+      var hit = svgEl('circle', { cx: X(i), cy: Y(p.v), r: 14, 'class': 'hit' });
+      hit.addEventListener('click', function () { select(i); });
+      svg.appendChild(hit);
+    });
+    box.appendChild(svg);
+    box.appendChild(legend([{ cls: 'lg-1', label: o.names[0] }, { cls: 'lg-2', label: o.names[1] }]));
+    box.appendChild(cap);
+    select(n - 1);
+    return box;
+  }
+
+  // seasons : [{label, fairways, greens, chip}] (précédente puis en cours)
+  function barChart(seasons) {
+    var W = 320, H = 200, L = 40, R = 12, T = 18, B = 26;
+    var groups = [['Fairways', 'fairways'], ['Greens en régul.', 'greens'], ['Chip-putts', 'chip']];
+    var box = el('div', 'chart');
+    var svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'Profil de jeu par saison' });
+    var Y = function (v) { return T + (1 - v) * (H - T - B); };
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (v) {
+      var y = Y(v);
+      svg.appendChild(svgEl('line', { x1: L, x2: W - R, y1: y, y2: y, 'class': 'grid' }));
+      var t = svgEl('text', { x: L - 5, y: y + 3, 'text-anchor': 'end', 'class': 'ax' });
+      t.textContent = Math.round(v * 100) + '%';
+      svg.appendChild(t);
+    });
+    var gw = (W - L - R) / groups.length;
+    var bw = Math.min(34, gw / (seasons.length + 1));
+    groups.forEach(function (g, gi) {
+      var cx = L + gw * gi + gw / 2;
+      var lab = svgEl('text', { x: cx, y: H - 8, 'text-anchor': 'middle', 'class': 'ax' });
+      lab.textContent = g[0];
+      svg.appendChild(lab);
+      seasons.forEach(function (s, si) {
+        var v = s[g[1]];
+        if (v === null || v === undefined) return;
+        var x = cx - (seasons.length * bw) / 2 + si * bw + 2;
+        var y = Y(Math.max(0, Math.min(1, v)));
+        svg.appendChild(svgEl('rect', { x: x, y: y, width: bw - 4, height: Math.max(0, Y(0) - y), rx: 3, 'class': 'bar bar-' + si }));
+        var t = svgEl('text', { x: x + (bw - 4) / 2, y: y - 4, 'text-anchor': 'middle', 'class': 'ax val' });
+        t.textContent = Math.round(v * 100) + '%';
+        svg.appendChild(t);
+      });
+    });
+    box.appendChild(svg);
+    box.appendChild(legend(seasons.map(function (s, si) { return { cls: 'lg-bar-' + si, label: s.label }; })));
+    return box;
+  }
+
+  /* ---------- Calendrier (onglet « Planning 2027 » du Sheets, lecture seule) ---------- */
+
+  async function loadCal() {
+    if (!state.session) return;
+    var cached = load(K.cal, null);
+    if (cached) { renderCal(cached); hideMsg('cal-msg'); }
+    else { $('cal-body').textContent = ''; setMsg('cal-msg', 'Chargement…', 'ok'); }
+    try {
+      var res = await post({ action: 'calendar', player: state.session.player, pin: state.session.pin });
+      if (!state.session) return;
+      if (res.ok) { save(K.cal, res); hideMsg('cal-msg'); renderCal(res); }
+      else handleServerError(res.error || { code: 'SERVER', message: 'Erreur inconnue.' }, 'cal-msg');
+    } catch (e) {
+      if (cached) setMsg('cal-msg', 'Hors ligne : calendrier de la dernière connexion.', 'ok');
+      else setMsg('cal-msg', 'Pas de réseau. Le calendrier s’affichera dès que le réseau revient.', 'err');
+    }
+  }
+
+  function parseIso(iso) { var p = iso.split('-'); return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), 12); }
+
+  function dayText(iso, today) {
+    var opts = { weekday: 'short', day: 'numeric', month: 'short' };
+    if (iso.slice(0, 4) !== String(today).slice(0, 4)) opts.year = 'numeric';
+    return parseIso(iso).toLocaleDateString('fr-FR', opts);
+  }
+
+  function daysUntil(iso, today) { return Math.round((parseIso(iso) - parseIso(today)) / 86400000); }
+
+  function untilText(e, today) {
+    var d = daysUntil(e.date, today);
+    if (d <= 0 && (e.end || e.date) >= today) return 'En cours';
+    if (d === 1) return 'Demain';
+    return 'Dans ' + d + ' jours';
+  }
+
+  function whenBlock(e) {
+    var when = el('div', 'when');
+    when.appendChild(el('b', null, String(Number(e.date.split('-')[2]))));
+    when.appendChild(el('span', null, parseIso(e.date).toLocaleDateString('fr-FR', { month: 'short' })));
+    return when;
+  }
+
+  // Date validée : carte verte, bandeau « VALIDÉ », lieu en gros. Date non validée : carte pâle en pointillés.
+  function eventNode(e, today) {
+    var valid = e.status === 'Validé';
+    var li = el('li', 'event ' + (valid ? 'valid' : 'tbc'));
+    li.appendChild(whenBlock(e));
+    var what = el('div', 'what');
+    var top = el('div', 'top');
+    top.appendChild(el('span', 'badge ' + (valid ? 'strong' : 'wait'), valid ? '✓ VALIDÉ' : 'À CONFIRMER'));
+    what.appendChild(top);
+    what.appendChild(el('div', 't', e.title));
+    what.appendChild(el('div', 's', dayText(e.date, today) + (e.end ? ' → ' + dayText(e.end, today) : '')));
+    if (e.place) what.appendChild(el('div', 'pl', 'Lieu : ' + e.place));
+    else what.appendChild(el('div', 'pl none', valid ? 'Lieu à communiquer' : 'Lieu et date à confirmer'));
+    if (e.info) what.appendChild(el('div', 'inf', e.info));
+    li.appendChild(what);
+    return li;
+  }
+
+  function heroNode(e, today) {
+    var h = el('section', 'hero');
+    h.appendChild(el('div', 'k', 'Prochaine date validée · ' + untilText(e, today)));
+    h.appendChild(el('div', 'ht', e.title));
+    h.appendChild(el('div', 'hd', dayText(e.date, today) + (e.end ? ' → ' + dayText(e.end, today) : '')));
+    h.appendChild(el('div', 'hp', e.place ? 'Lieu : ' + e.place : 'Lieu à communiquer'));
+    if (e.info) h.appendChild(el('div', 'hi', e.info));
+    return h;
+  }
+
+  function renderCal(d) {
+    var body = $('cal-body');
+    body.textContent = '';
+    var today = d.today || state.data.today;
+    var events = d.events || [];
+    if (d.missing) { body.appendChild(card('Calendrier', 'Le calendrier n’est pas encore disponible. Préviens le capitaine.')); return; }
+
+    var next = events.filter(function (e) { return (e.end || e.date) >= today; });
+    var past = events.filter(function (e) { return (e.end || e.date) < today; }).reverse().slice(0, 20);
+    var nValid = next.filter(function (e) { return e.status === 'Validé'; }).length;
+
+    var firstValid = next.filter(function (e) { return e.status === 'Validé'; })[0];
+    if (firstValid) body.appendChild(heroNode(firstValid, today));
+
+    var filter = state.calFilter || 'all';
+    var seg = el('div', 'seg');
+    [['all', 'Tout (' + next.length + ')'], ['valid', 'Validées (' + nValid + ')']].forEach(function (o) {
+      var b = el('button', null, o[1]);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(filter === o[0]));
+      b.addEventListener('click', function () { state.calFilter = o[0]; renderCal(d); });
+      seg.appendChild(b);
+    });
+    body.appendChild(seg);
+
+    var shown = filter === 'valid' ? next.filter(function (e) { return e.status === 'Validé'; }) : next;
+    var c = card('À venir', 'Les dates validées sont en vert. Les autres ne sont pas encore confirmées : ne bloque rien pour elles.');
+    if (shown.length) {
+      var ul = el('ul', 'events');
+      shown.forEach(function (e) { ul.appendChild(eventNode(e, today)); });
+      c.appendChild(ul);
+    } else c.appendChild(el('p', 'empty', filter === 'valid' ? 'Aucune date validée pour le moment.' : 'Aucune date au calendrier pour le moment.'));
+    body.appendChild(c);
+
+    if (past.length) {
+      var det = el('details', 'card past');
+      det.appendChild(el('summary', null, 'Passés (' + past.length + ')'));
+      var ul2 = el('ul', 'events');
+      past.forEach(function (e) { ul2.appendChild(eventNode(e, today)); });
+      det.appendChild(ul2);
+      body.appendChild(det);
+    }
   }
 
   /* ---------- Formulaire ---------- */
@@ -299,8 +665,8 @@
     }
     var c = courseByName($('course').value);
     if (!c) { $('live').textContent = 'Choisis le parcours et saisis ton score.'; return; }
-    var sss = String(c.sss).replace('.', ',');
-    if (!$('strokes').value) { $('live').textContent = c.name + ' : par ' + c.par + ', SSS ' + sss + '.'; return; }
+    var sss = String(c.sss).replace('.', ',') + (c.prov ? ' provisoire' : '');
+    if (!$('strokes').value) { $('live').textContent = c.name + (c.tees ? ' (' + c.tees + ')' : '') + ' : par ' + c.par + ', SSS ' + sss + '.'; return; }
     var s = Number($('strokes').value);
     $('live').textContent = 'Au par : ' + signedPar(s - c.par) + '  ·  Écart au SSS (' + sss + ') : ' + signed(s - c.sss);
   }
@@ -370,7 +736,7 @@
     try {
       var res = await post(body);
       if (res.ok) {
-        if (!SIM) { save(K.recent, res.recent); renderRecent(res.recent); }
+        if (!SIM) { save(K.recent, res.recent); drop(K.space); }
         var ec = res.ecart ? res.ecart : 'calculé plus tard (parcours à ajouter)';
         var txt = SIM
           ? 'Simulation réussie, rien n’a été écrit. Écart au SSS : ' + ec + (res.trp ? ' · TRP : ' + res.trp : '') + ' · ligne prévue : ' + res.row + '.'
@@ -450,7 +816,7 @@
       updatePending();
     }
     if (notes.length && state.session) {
-      renderRecent(load(K.recent, []));
+      drop(K.space);
       setMsg('msg', notes.join(' '), notes.some(function (n) { return /^(Refusé|Envoi bloqué)/.test(n); }) ? 'err' : 'ok');
     }
   }

@@ -76,8 +76,9 @@
     </div>
 
     <nav class="tabs" role="tablist">
-      <button type="button" role="tab" id="tab-form" aria-selected="true">Saisir un tour</button>
-      <button type="button" role="tab" id="tab-recent" aria-selected="false">Mes tours</button>
+      <button type="button" role="tab" id="tab-form" aria-selected="true">Saisir</button>
+      <button type="button" role="tab" id="tab-space" aria-selected="false">Mon espace</button>
+      <button type="button" role="tab" id="tab-cal" aria-selected="false">Calendrier</button>
     </nav>
 
     <div id="view-form">
@@ -157,11 +158,14 @@
       </form>
     </div>
 
-    <div id="view-recent" hidden>
-      <div class="card">
-        <ul class="rounds" id="recent-list"></ul>
-        <p class="hint small">Lecture seule. Pour corriger un tour, préviens le capitaine.</p>
-      </div>
+    <div id="view-space" hidden>
+      <div class="msg" id="space-msg" role="status" hidden></div>
+      <div id="space-body"></div>
+    </div>
+
+    <div id="view-cal" hidden>
+      <div class="msg" id="cal-msg" role="status" hidden></div>
+      <div id="cal-body"></div>
     </div>
   </section>
 
