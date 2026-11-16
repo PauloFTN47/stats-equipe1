@@ -1136,17 +1136,18 @@
   }
 
   // Identifiant de connexion staff (distinct du nom de joueur pour que le trousseau iPhone garde deux entrées séparées).
-  var STAFF_IDS = { 'capitaine pf': 'Paul Fonteneau', 'vice rl': 'Romain Legentil', 'coach dc': 'David Cesaro', 'jeux mb': 'Max Boucher', 'jeux nd': 'Nicolas Dupuy', 'president mc': 'Michel Caubet' };
+  var STAFF_IDS = { 'Paul Fonteneau': 'Capitaine PF', 'Romain Legentil': 'Vice-Capitaine RL', 'David Cesaro': 'Coach DC', 'Max Boucher': 'Jeux MB', 'Nicolas Dupuy': 'Jeux ND', 'Michel Caubet': 'Président MC' };
+  function staffIdOf(name) { return STAFF_IDS[name] || name; }
   function normId(v) { return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
   function staffNameFromId(v) {
     var k = normId(v);
-    if (STAFF_IDS[k] && (state.data.staff || []).indexOf(STAFF_IDS[k]) >= 0) return STAFF_IDS[k];
     var list = state.data.staff || [];
-    for (var i = 0; i < list.length; i++) if (normId(list[i]) === k) return list[i];
+    for (var i = 0; i < list.length; i++) if (normId(staffIdOf(list[i])) === k || normId(list[i]) === k) return list[i];
     return String(v || '').trim();
   }
 
   function enterStaffLogin(msg) {
+    fill($('slogin-name'), (state.data.staff || []).map(staffIdOf), 'Choisis ton identifiant');
     $('slogin-pin').value = '';
     if (msg) setMsg('slogin-msg', msg, 'err'); else hideMsg('slogin-msg');
     show('staff-login');
@@ -1159,7 +1160,7 @@
     hideMsg('slogin-msg');
     var name = staffNameFromId($('slogin-name').value);
     var pin = $('slogin-pin').value.trim();
-    if (!name) return setMsg('slogin-msg', 'Saisis ton identifiant staff.', 'err');
+    if (!name) return setMsg('slogin-msg', 'Choisis ton identifiant staff.', 'err');
     if (!pin) return setMsg('slogin-msg', 'Saisis ton code.', 'err');
     $('slogin-btn').disabled = true;
     $('slogin-btn').textContent = 'Connexion…';

@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=14">
+<link rel="stylesheet" href="styles.css?v=15">
 </head>
 <body>
 <main>
@@ -62,7 +62,7 @@
     <p class="sub">Connecte-toi avec ton identifiant staff et ton code staff (différent d'un code joueur).</p>
     <form id="slogin-form" class="card" novalidate autocomplete="off">
       <label for="slogin-name">Identifiant staff</label>
-      <input id="slogin-name" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="ex. capitaine PF" required>
+      <select id="slogin-name" name="username" autocomplete="username" required></select>
       <label for="slogin-pin">Code staff</label>
       <input id="slogin-pin" name="password" type="password" inputmode="numeric" autocomplete="current-password" placeholder="6 chiffres">
       <button type="submit" id="slogin-btn">Se connecter</button>
@@ -224,7 +224,7 @@
   </section>
 
 </main>
-<script src="config.js?v=14"></script>
-<script src="app.js?v=14"></script>
+<script src="config.js?v=15"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>
