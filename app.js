@@ -3,7 +3,7 @@
 
   var API = (window.APP_CONFIG && window.APP_CONFIG.API_URL) || '';
   var SIM = /[?&]simulation=1/.test(window.location.search);   // ?simulation=1 : vérifie tout, n'écrit rien
-  var K = { init: 'stats.init', session: 'stats.session', queue: 'stats.queue', recent: 'stats.recent', hint: 'stats.hint' };
+  var K = { key: 'stats.key', init: 'stats.init', session: 'stats.session', queue: 'stats.queue', recent: 'stats.recent', hint: 'stats.hint' };
   var TYPES = { 1: 'Compétition', 2: 'Tour annoncé', 3: 'Entraînement (non compté)' };
   var state = { data: null, session: null, armed: false, flushing: false };
 
@@ -11,6 +11,15 @@
   function load(k, fallback) { try { var v = window.localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
   function save(k, v) { try { window.localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* stockage indisponible */ } }
   function drop(k) { try { window.localStorage.removeItem(k); } catch (e) { /* ignore */ } }
+
+  /* ---------- Clé du lien ---------- */
+
+  // Le lien envoyé par le capitaine finit par #k=XXXXXXXX. La clé reste sur l'appareil et part avec chaque requête.
+  function getKey() {
+    var m = /[#?&]k=([A-Za-z0-9_-]{4,64})/.exec(window.location.hash + window.location.search);
+    if (m) { save(K.key, m[1]); return m[1]; }
+    return load(K.key, '');
+  }
 
   /* ---------- Réseau ---------- */
 
@@ -29,14 +38,16 @@
     }
   }
 
-  function post(body) {
-    return request(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+  async function post(body) {
+    var res = await request(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ key: getKey() }, body)) });
+    if (res && res.error && res.error.code === 'KEY') drop(K.key);        // clé refusée : elle sera redemandée au prochain démarrage
+    return res;
   }
 
   /* ---------- Affichage ---------- */
 
   function show(screen) {
-    ['loading', 'login', 'app'].forEach(function (s) { $('screen-' + s).hidden = s !== screen; });
+    ['loading', 'key', 'login', 'app'].forEach(function (s) { $('screen-' + s).hidden = s !== screen; });
   }
 
   function setMsg(id, text, kind) {
@@ -85,10 +96,18 @@
       return;
     }
 
+    var key = getKey();
+    if (!key) { enterKey(''); return; }
+
     var data = null;
     try {
-      var res = await request(API + '?action=init');
+      var res = await request(API + '?action=init&key=' + encodeURIComponent(key));
       if (res && res.ok) { data = res; save(K.init, res); }
+      else if (res && res.error && res.error.code === 'KEY') {
+        drop(K.key); drop(K.init); drop(K.session);
+        enterKey('Clé refusée. Rouvre le lien reçu du capitaine ou ressaisis la clé.');
+        return;
+      }
     } catch (e) { /* hors ligne : on retombe sur la dernière copie */ }
     if (!data) data = load(K.init, null);
     if (!data) {
@@ -103,6 +122,20 @@
     if (state.session) { enterApp(); refreshMe(); }
     else enterLogin();
   }
+
+  function enterKey(msg) {
+    $('key-input').value = '';
+    if (msg) setMsg('key-msg', msg, 'err'); else hideMsg('key-msg');
+    show('key');
+  }
+
+  $('key-form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var v = $('key-input').value.trim();
+    if (!/^[A-Za-z0-9_-]{4,64}$/.test(v)) return setMsg('key-msg', 'Clé invalide : lettres et chiffres uniquement.', 'err');
+    save(K.key, v);
+    boot();
+  });
 
   function enterLogin() {
     fill($('login-player'), state.data.players, 'Choisis ton nom');
@@ -380,7 +413,7 @@
           save(K.recent, res.recent);
         } else if (res.error && res.error.code === 'DUPLICATE') {
           notes.push('Déjà enregistré : ' + item.round.name + '.');
-        } else if (res.error && (res.error.code === 'AUTH' || res.error.code === 'LOCKED')) {
+        } else if (res.error && (res.error.code === 'AUTH' || res.error.code === 'LOCKED' || res.error.code === 'KEY')) {
           notes.push('Envoi bloqué : ' + res.error.message);
           break;                                                            // on garde la file, on réessaiera après reconnexion
         } else {
