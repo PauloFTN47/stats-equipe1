@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stats Castel</title>
+<meta name="description" content="Saisie des statistiques de l'équipe 1 de golf de Casteljaloux">
+<meta name="theme-color" content="#1f6b3a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Stats Castel">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main>
+
+  <!-- Chargement -->
+  <section id="screen-loading">
+    <h1>Stats Équipe 1</h1>
+    <p class="sub" id="loading-text">Chargement…</p>
+    <button type="button" id="retry" hidden>Réessayer</button>
+  </section>
+
+  <!-- Connexion -->
+  <section id="screen-login" hidden>
+    <h1>Stats Équipe 1</h1>
+    <p class="sub">Connecte-toi avec ton nom et ton code personnel.</p>
+    <form id="login-form" class="card" novalidate autocomplete="off">
+      <label for="login-player">Joueur</label>
+      <select id="login-player" required></select>
+      <label for="login-pin">Code personnel</label>
+      <input id="login-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="6 chiffres">
+      <button type="submit" id="login-btn">Se connecter</button>
+      <div class="msg" id="login-msg" role="alert" hidden></div>
+    </form>
+  </section>
+
+  <!-- Appli -->
+  <section id="screen-app" hidden>
+    <header class="bar">
+      <div>
+        <div class="who" id="who"></div>
+        <div class="sim" id="sim" hidden>Mode simulation : rien n'est écrit</div>
+      </div>
+      <button type="button" class="link" id="logout">Changer</button>
+    </header>
+
+    <div class="banner" id="pending" hidden>
+      <span id="pending-text"></span>
+      <button type="button" class="link" id="pending-btn">Envoyer</button>
+    </div>
+
+    <div class="banner info" id="ios-hint" hidden>
+      <span>Pour l'installer : touche <strong>Partager</strong> puis <strong>Sur l'écran d'accueil</strong>.</span>
+      <button type="button" class="link" id="ios-hint-close">OK</button>
+    </div>
+
+    <nav class="tabs" role="tablist">
+      <button type="button" role="tab" id="tab-form" aria-selected="true">Saisir un tour</button>
+      <button type="button" role="tab" id="tab-recent" aria-selected="false">Mes tours</button>
+    </nav>
+
+    <div id="view-form">
+      <form id="form" class="card" novalidate autocomplete="off">
+        <fieldset>
+          <legend>Le tour</legend>
+          <div class="grid">
+            <div>
+              <label for="date">Date</label>
+              <input id="date" type="date" required>
+            </div>
+            <div>
+              <label for="type">Type</label>
+              <select id="type">
+                <option value="1">1 · Compétition</option>
+                <option value="2">2 · Tour annoncé</option>
+                <option value="3">3 · Entraînement</option>
+              </select>
+            </div>
+          </div>
+          <label for="name">Nom du tour <span class="hint">ex. Championnat du club T1</span></label>
+          <input id="name" type="text" maxlength="60" required>
+          <label for="course">Parcours</label>
+          <select id="course" required></select>
+        </fieldset>
+
+        <fieldset>
+          <legend>Résultat</legend>
+          <label for="strokes">Score brut <span class="hint">total des coups sur 18 trous</span></label>
+          <input id="strokes" type="number" inputmode="numeric" min="50" max="130" step="1" required>
+          <div class="live" id="live" aria-live="polite"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Statistiques <span class="hint">fairways, greens et putts vont ensemble</span></legend>
+          <div class="grid">
+            <div>
+              <label for="fairways">Fairways <span class="hint">/ 14</span></label>
+              <input id="fairways" type="number" inputmode="numeric" min="0" max="14" step="1">
+            </div>
+            <div>
+              <label for="greens">Greens en régul. <span class="hint">/ 18</span></label>
+              <input id="greens" type="number" inputmode="numeric" min="0" max="18" step="1">
+            </div>
+            <div>
+              <label for="putts">Putts <span class="hint">total</span></label>
+              <input id="putts" type="number" inputmode="numeric" min="15" max="60" step="1">
+            </div>
+            <div></div>
+            <div>
+              <label for="chipMade">Chip-putts réussis</label>
+              <input id="chipMade" type="number" inputmode="numeric" min="0" max="30" step="1">
+            </div>
+            <div>
+              <label for="chipTried">Chip-putts tentés</label>
+              <input id="chipTried" type="number" inputmode="numeric" min="1" max="30" step="1">
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Commentaire <span class="hint">optionnel</span></legend>
+          <textarea id="comment" maxlength="300" aria-label="Commentaire"></textarea>
+        </fieldset>
+
+        <div class="recap" id="recap" hidden></div>
+        <button type="submit" id="btn">Vérifier et envoyer</button>
+        <button type="button" class="secondary" id="edit" hidden>Modifier</button>
+        <div class="msg" id="msg" role="alert" hidden></div>
+      </form>
+    </div>
+
+    <div id="view-recent" hidden>
+      <div class="card">
+        <ul class="rounds" id="recent-list"></ul>
+        <p class="hint small">Lecture seule. Pour corriger un tour, préviens le capitaine.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
