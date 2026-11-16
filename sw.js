@@ -1,13 +1,14 @@
 // Service worker : met l'appli en cache pour qu'elle s'ouvre sans réseau.
 // Les appels à l'API Apps Script ne passent jamais par le cache.
-// Pour publier une nouvelle version de l'appli, changer le numéro ci-dessous.
-var VERSION = 'stats-castel-v7';
+// Pour publier une nouvelle version de l'appli : changer le numéro ci-dessous ET le « ?v= » de styles.css, app.js et config.js
+// dans index.html et dans la liste SHELL (le navigateur ne peut plus mélanger ancien et nouveau fichier).
+var VERSION = 'stats-castel-v8';
 var SHELL = [
   './',
   'index.html',
-  'styles.css',
-  'app.js',
-  'config.js',
+  'styles.css?v=8',
+  'app.js?v=8',
+  'config.js?v=8',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
@@ -33,7 +34,7 @@ self.addEventListener('fetch', function (event) {
   var url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;   // API et autres origines : réseau direct
   event.respondWith(
-    fetch(req).then(function (res) {
+    fetch(new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' })).then(function (res) {   // revalidation à chaque fois : jamais un ancien fichier gardé 10 minutes par le navigateur
       var copy = res.clone();
       caches.open(VERSION).then(function (c) { c.put(req, copy); });
       return res;

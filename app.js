@@ -272,6 +272,7 @@
     body.textContent = '';
     if (d.team) body.appendChild(teamCard(d.team, d.season));
     body.appendChild(averagesCard(d.seasons || []));
+    if (d.mental) body.appendChild(mentalCard(d.mental));
 
     var ch = d.charts || {};
     var c1 = card('Écart au SSS en compétition', 'Coups au-dessus du SSS : plus bas = mieux. Les lignes pointillées sont les plafonds de moyenne par rôle.');
@@ -350,6 +351,61 @@
     });
     c.appendChild(t);
     c.appendChild(el('p', 'hint small', 'TRP = putts réels ÷ putts attendus (sous 1,00 : bon putting). Conv. green = greens en régul. ÷ (fairways touchés + par 3) : au-dessus de 1,00, tu touches des greens même sans fairway.'));
+    return c;
+  }
+
+  /** Reporting mental : moyenne par critère (dès 2 évaluations), critère à travailler en premier, historique. */
+  function mentalCard(m) {
+    var c = card('Mental', 'Tes auto-évaluations, notées de 1 (mauvais) à 4 (très bon). Elles sont confidentielles.');
+    var kinds = [['match', 'Après un match'], ['training', 'Après un entraînement']];
+    var any = false;
+    kinds.forEach(function (k) {
+      var d = m[k[0]];
+      if (!d || !d.n) return;
+      any = true;
+      var sec = el('div', 'mental-sec');
+      sec.appendChild(el('h3', null, k[1] + ' · ' + d.n + ' évaluation' + (d.n > 1 ? 's' : '')));
+      if (d.avg) {
+        var items = MENTAL[k[0]].items;
+        var weak = {};
+        (d.weakest || []).forEach(function (n) { weak[n] = true; });
+        d.avg.forEach(function (a, i) {
+          var row = el('div', 'mrow' + (weak[items[i][0]] ? ' weak' : ''));
+          row.appendChild(el('div', 'ml', items[i][0]));
+          var track = el('div', 'mtrack');
+          var fill = el('div', 'mfill');
+          fill.style.width = Math.max(0, Math.min(100, a / 4 * 100)) + '%';
+          track.appendChild(fill);
+          row.appendChild(track);
+          row.appendChild(el('div', 'mv', num(a, 2)));
+          sec.appendChild(row);
+        });
+        var line = 'Total moyen : ' + num(d.total, 1) + '/20' + (k[0] === 'match' ? ' (alerte sous ' + MENTAL_ALERT + ')' : '');
+        sec.appendChild(el('p', 'hint small', line));
+        if (d.weakest && d.weakest.length) {
+          var w = el('p', 'focus');
+          w.appendChild(el('b', null, 'À travailler en premier : '));
+          w.appendChild(document.createTextNode(d.weakest.join(', ')));
+          sec.appendChild(w);
+        }
+      } else {
+        sec.appendChild(el('p', 'hint small', 'Les moyennes apparaissent dès 2 évaluations.'));
+      }
+      var ul = el('ul', 'rounds');
+      (d.history || []).forEach(function (h) {
+        var li = el('li');
+        var left = el('div');
+        left.appendChild(el('div', 't', h.name));
+        left.appendChild(el('div', 's', String(h.date || '').split('-').reverse().join('/') + (h.work && h.work.length ? ' · à travailler : ' + h.work.join(', ') : '')));
+        var right = el('div', 'r', h.total + '/20');
+        if (h.zone) right.appendChild(el('small', null, h.zone));
+        li.appendChild(left); li.appendChild(right);
+        ul.appendChild(li);
+      });
+      sec.appendChild(ul);
+      c.appendChild(sec);
+    });
+    if (!any) c.appendChild(el('p', 'empty', 'Pas encore d’auto-évaluation. Elle se remplit à chaque saisie d’un tour, dans l’onglet Saisir.'));
     return c;
   }
 

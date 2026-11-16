@@ -176,3 +176,16 @@ input[type="date"] { min-width: 0; -webkit-appearance: none; appearance: none; }
 .rate button { background: transparent; color: var(--ink); border: 1px solid var(--line); margin: 0; min-height: 46px; font-size: 1.05rem; }
 .rate button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 #mental > .hint-line:first-of-type { margin: 0 0 10px; }
+
+/* Mon espace : reporting mental */
+.mental-sec { padding: 12px 0; border-top: 1px solid var(--line); }
+.mental-sec:first-of-type { border-top: 0; padding-top: 4px; }
+.mental-sec h3 { margin: 0 0 8px; font-size: 1rem; }
+.mrow { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 2.6em; align-items: center; gap: 8px; padding: 5px 0; font-size: .9rem; }
+.mrow .ml { overflow-wrap: anywhere; }
+.mtrack { height: 10px; background: var(--soft); border-radius: 6px; overflow: hidden; }
+.mfill { height: 100%; background: var(--muted); border-radius: 6px; }
+.mrow .mv { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.mrow.weak .ml, .mrow.weak .mv { font-weight: 700; color: var(--ink); }
+.mrow.weak .mfill { background: var(--accent); }
+.focus { margin: 8px 0 10px; padding: 10px 12px; background: var(--soft); border-left: 4px solid var(--accent); border-radius: 8px; font-size: .92rem; }
