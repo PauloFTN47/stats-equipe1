@@ -18,6 +18,11 @@ Un onglet réservé au staff (capitaine, vice-capitaine, coach, capitaines des j
 Chaque membre a un code individuel distinct des codes joueurs. Les droits sont contrôlés par l'API à chaque requête, pas par l'interface :
 synthèse d'équipe, fiche joueur, classement, calendrier pour tous ; notes mentales individuelles pour le capitaine seul.
 
+## Présences
+
+Sur le calendrier, chaque joueur peut valider (et annuler) sa présence aux dates validées à venir. Le staff voit, sur chaque échéance, la liste des présents et des joueurs sans réponse.
+Les présences sont stockées dans l'onglet « Présences » du Sheets (créé automatiquement), une ligne par joueur et par échéance. Une échéance est identifiée par sa date et son titre dans l'onglet « Planning 2027 » : modifier l'un des deux détache les présences déjà validées.
+
 ## Mettre à jour l'appli
 
 Après toute modification des fichiers de l'appli, changer le numéro de version `VERSION` dans `sw.js`

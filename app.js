@@ -6,7 +6,7 @@
   var K = { key: 'stats.key', init: 'stats.init', session: 'stats.session', queue: 'stats.queue', recent: 'stats.recent', hint: 'stats.hint', space: 'stats.space', cal: 'stats.cal', race: 'stats.race', staff: 'stats.staff', sov: 'stats.sov', scal: 'stats.scal' };
   var OTHER = '__autre__';   // valeur de l'option « Autre parcours »
   var TYPES = { 1: 'Compétition', 2: 'Tour annoncé', 3: 'Entraînement (non compté)' };
-  var state = { data: null, session: null, armed: false, flushing: false, calFilter: 'all', spaceView: 'match', spaceData: null, detailView: 'match' };
+  var state = { data: null, session: null, armed: false, flushing: false, calFilter: 'all', presBusy: false, spaceView: 'match', spaceData: null, detailView: 'match' };
 
   function $(id) { return document.getElementById(id); }
   function load(k, fallback) { try { var v = window.localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
@@ -658,7 +658,7 @@
   }
 
   // Date validée : carte verte, bandeau « VALIDÉ », lieu en gros. Date non validée : carte pâle en pointillés.
-  function eventNode(e, today) {
+  function eventNode(e, today, ctx) {
     var valid = e.status === 'Validé';
     var li = el('li', 'event ' + (valid ? 'valid' : 'tbc'));
     li.appendChild(whenBlock(e));
@@ -671,17 +671,98 @@
     if (e.place) what.appendChild(el('div', 'pl', 'Lieu : ' + e.place));
     else what.appendChild(el('div', 'pl none', valid ? 'Lieu à communiquer' : 'Lieu et date à confirmer'));
     if (e.info) what.appendChild(el('div', 'inf', e.info));
+    var pres = presenceNode(e, today, ctx);
+    if (pres) what.appendChild(pres);
     li.appendChild(what);
     return li;
   }
 
-  function heroNode(e, today) {
+  /* -- Présence aux échéances : « Valider ma présence » (joueur), liste des présents (staff) -- */
+
+  // Le joueur ne peut valider que les dates validées, pas encore passées.
+  function presenceOpen(e, today) { return e.status === 'Validé' && (e.end || e.date) >= today && !!e.key; }
+
+  function presenceNode(e, today, ctx) {
+    if (!ctx) return null;
+    return ctx.staff ? staffPresenceNode(e, today) : playerPresenceNode(e, today, ctx);
+  }
+
+  function playerPresenceNode(e, today, ctx) {
+    if (!presenceOpen(e, today)) return null;
+    var box = el('div', 'pres' + (e.mine ? ' on' : ''));
+    if (e.mine) {
+      box.appendChild(el('span', 'badge ok', '✓ Présence validée'));
+      var undo = el('button', 'link', 'Annuler');
+      undo.type = 'button';
+      undo.addEventListener('click', function () { setPresence(e, false, ctx, undo); });
+      box.appendChild(undo);
+    } else {
+      var b = el('button', 'pres-btn', 'Valider ma présence');
+      b.type = 'button';
+      b.addEventListener('click', function () { setPresence(e, true, ctx, b); });
+      box.appendChild(b);
+    }
+    return box;
+  }
+
+  async function setPresence(e, present, ctx, btn) {
+    if (!state.session || state.presBusy) return;
+    state.presBusy = true;
+    btn.disabled = true;
+    try {
+      if (SIM) {
+        e.mine = present;   // simulation : rien n'est écrit dans le Sheets
+        renderCal(ctx.d);
+        return;
+      }
+      var res = await post({ action: 'presence', player: state.session.player, pin: state.session.pin, key: e.key, present: present });
+      if (!state.session) return;
+      if (res.ok) {
+        e.mine = !!res.present;
+        save(K.cal, ctx.d);
+        hideMsg('cal-msg');
+        renderCal(ctx.d);
+      } else {
+        btn.disabled = false;
+        handleServerError(res.error || { code: 'SERVER', message: 'Erreur inconnue.' }, 'cal-msg');
+      }
+    } catch (x) {
+      btn.disabled = false;
+      setMsg('cal-msg', 'Pas de réseau : ta présence n’a pas été enregistrée. Réessaie dès que le réseau revient.', 'err');
+    } finally {
+      state.presBusy = false;
+    }
+  }
+
+  // Staff : qui est présent, et pour les dates validées à venir, qui n'a pas encore répondu.
+  function staffPresenceNode(e, today) {
+    var yes = e.present || [], wait = e.waiting || [];
+    var open = presenceOpen(e, today);
+    if (!open && !yes.length) return null;
+    var box = el('div', 'pres-staff');
+    var head = el('div', 'ph');
+    head.appendChild(el('b', null, yes.length + (yes.length > 1 ? ' présents' : ' présent')));
+    if (open) head.appendChild(el('span', null, ' sur ' + (yes.length + wait.length)));
+    box.appendChild(head);
+    if (yes.length) box.appendChild(el('div', 'pn', yes.join(', ')));
+    else box.appendChild(el('div', 'pn none', 'Personne n’a encore validé.'));
+    if (wait.length) {
+      var det = el('details', 'pw');
+      det.appendChild(el('summary', null, 'Sans réponse (' + wait.length + ')'));
+      det.appendChild(el('div', 'pn', wait.join(', ')));
+      box.appendChild(det);
+    }
+    return box;
+  }
+
+  function heroNode(e, today, ctx) {
     var h = el('section', 'hero');
     h.appendChild(el('div', 'k', 'Prochaine date validée · ' + untilText(e, today)));
     h.appendChild(el('div', 'ht', e.title));
     h.appendChild(el('div', 'hd', dayText(e.date, today) + (e.end ? ' → ' + dayText(e.end, today) : '')));
     h.appendChild(el('div', 'hp', e.place ? 'Lieu : ' + e.place : 'Lieu à communiquer'));
     if (e.info) h.appendChild(el('div', 'hi', e.info));
+    if (ctx && !ctx.staff) { var pres = playerPresenceNode(e, today, ctx); if (pres) h.appendChild(pres); }
     return h;
   }
 
@@ -696,8 +777,9 @@
     var past = events.filter(function (e) { return (e.end || e.date) < today; }).reverse().slice(0, 20);
     var nValid = next.filter(function (e) { return e.status === 'Validé'; }).length;
 
+    var ctx = { d: d, staff: !!targetId };   // targetId : vue staff
     var firstValid = next.filter(function (e) { return e.status === 'Validé'; })[0];
-    if (firstValid) body.appendChild(heroNode(firstValid, today));
+    if (firstValid) body.appendChild(heroNode(firstValid, today, ctx));
 
     var filter = state.calFilter || 'all';
     var seg = el('div', 'seg');
@@ -714,7 +796,7 @@
     var c = card('À venir', 'Les dates validées sont en vert. Les autres ne sont pas encore confirmées : ne bloque rien pour elles.');
     if (shown.length) {
       var ul = el('ul', 'events');
-      shown.forEach(function (e) { ul.appendChild(eventNode(e, today)); });
+      shown.forEach(function (e) { ul.appendChild(eventNode(e, today, ctx)); });
       c.appendChild(ul);
     } else c.appendChild(el('p', 'empty', filter === 'valid' ? 'Aucune date validée pour le moment.' : 'Aucune date au calendrier pour le moment.'));
     body.appendChild(c);
@@ -723,7 +805,7 @@
       var det = el('details', 'card past');
       det.appendChild(el('summary', null, 'Passés (' + past.length + ')'));
       var ul2 = el('ul', 'events');
-      past.forEach(function (e) { ul2.appendChild(eventNode(e, today)); });
+      past.forEach(function (e) { ul2.appendChild(eventNode(e, today, ctx)); });
       det.appendChild(ul2);
       body.appendChild(det);
     }

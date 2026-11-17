@@ -164,6 +164,22 @@ table.stats tr:last-child th, table.stats tr:last-child td { border-bottom: 0; }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 details.past > summary { cursor: pointer; font-weight: 650; }
 details.past .event.valid, details.past .event.tbc { opacity: .75; }
+
+/* Présences aux échéances */
+.pres { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.pres button.pres-btn { width: 100%; margin: 0; min-height: 46px; padding: 10px 16px; }
+.pres.on { justify-content: flex-start; }
+.hero .pres button.pres-btn { background: var(--accent-ink); color: var(--accent); }
+.hero .pres .badge.ok { background: var(--accent-ink); color: var(--accent); }
+.hero .pres button.link { color: var(--accent-ink); text-decoration: underline; }
+.pres-staff { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-size: .88rem; }
+.pres-staff .ph b { font-size: .95rem; }
+.pres-staff .ph span { color: var(--muted); }
+.pres-staff .pn { margin-top: 2px; line-height: 1.4; }
+.pres-staff .pn.none { color: var(--muted); }
+.pres-staff details { margin-top: 6px; }
+.pres-staff summary { cursor: pointer; color: var(--muted); }
+
 .grid > div { min-width: 0; }
 input[type="date"] { min-width: 0; -webkit-appearance: none; appearance: none; }
 
