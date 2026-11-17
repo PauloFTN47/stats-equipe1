@@ -264,3 +264,8 @@ table.stats th { font-size: .8rem; }
 
 .rk .pos.yes { background: var(--ok-bg); color: var(--accent); }
 .rk .pos.no { background: var(--warn-bg); color: var(--warn); }
+
+/* Onglets joueur : 4 onglets en 2 x 2 */
+.tabs.four { grid-template-columns: repeat(2, 1fr); }
+.rk li.me { background: var(--soft); border-radius: 10px; padding-left: 8px; padding-right: 8px; }
+.rk .tag-me { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: .7rem; font-weight: 700; vertical-align: middle; }

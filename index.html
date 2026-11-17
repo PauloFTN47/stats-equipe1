@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=22">
+<link rel="stylesheet" href="styles.css?v=23">
 </head>
 <body>
 <main>
@@ -104,10 +104,11 @@
       <button type="button" class="link" id="ios-hint-close">OK</button>
     </div>
 
-    <nav class="tabs" role="tablist">
+    <nav class="tabs four" role="tablist">
       <button type="button" role="tab" id="tab-form" aria-selected="true">Saisir</button>
       <button type="button" role="tab" id="tab-space" aria-selected="false">Mon espace</button>
       <button type="button" role="tab" id="tab-cal" aria-selected="false">Calendrier</button>
+      <button type="button" role="tab" id="tab-race" aria-selected="false">Race To Marrakech</button>
     </nav>
 
     <div id="view-form">
@@ -208,10 +209,15 @@
       <div class="msg" id="cal-msg" role="status" hidden></div>
       <div id="cal-body"></div>
     </div>
+
+    <div id="view-race" hidden>
+      <div class="msg" id="race-msg" role="status" hidden></div>
+      <div id="race-body"></div>
+    </div>
   </section>
 
 </main>
-<script src="config.js?v=22"></script>
-<script src="app.js?v=22"></script>
+<script src="config.js?v=23"></script>
+<script src="app.js?v=23"></script>
 </body>
 </html>

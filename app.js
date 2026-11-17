@@ -3,7 +3,7 @@
 
   var API = (window.APP_CONFIG && window.APP_CONFIG.API_URL) || '';
   var SIM = /[?&]simulation=1/.test(window.location.search);   // ?simulation=1 : vérifie tout, n'écrit rien
-  var K = { key: 'stats.key', init: 'stats.init', session: 'stats.session', queue: 'stats.queue', recent: 'stats.recent', hint: 'stats.hint', space: 'stats.space', cal: 'stats.cal', staff: 'stats.staff', sov: 'stats.sov', scal: 'stats.scal' };
+  var K = { key: 'stats.key', init: 'stats.init', session: 'stats.session', queue: 'stats.queue', recent: 'stats.recent', hint: 'stats.hint', space: 'stats.space', cal: 'stats.cal', race: 'stats.race', staff: 'stats.staff', sov: 'stats.sov', scal: 'stats.scal' };
   var OTHER = '__autre__';   // valeur de l'option « Autre parcours »
   var TYPES = { 1: 'Compétition', 2: 'Tour annoncé', 3: 'Entraînement (non compté)' };
   var state = { data: null, session: null, armed: false, flushing: false, calFilter: 'all', spaceView: 'match', spaceData: null, detailView: 'match' };
@@ -165,7 +165,7 @@
         state.session = { player: player, pin: pin };
         save(K.session, state.session);
         save(K.recent, res.recent);
-        drop(K.space); drop(K.cal);
+        drop(K.space); drop(K.cal); drop(K.race);
         drop(K.staff); drop(K.sov); drop(K.scal); state.staff = null;   // une seule session à la fois sur l'appareil
         enterApp();
       } else {
@@ -181,7 +181,7 @@
 
   function logout() {
     drop(K.session);
-    drop(K.recent); drop(K.space); drop(K.cal);
+    drop(K.recent); drop(K.space); drop(K.cal); drop(K.race);
     state.session = null;
     enterLogin();
   }
@@ -190,7 +190,7 @@
 
   /* ---------- Onglets ---------- */
 
-  var TABS = ['form', 'space', 'cal'];
+  var TABS = ['form', 'space', 'cal', 'race'];
 
   function selectTab(name) {
     TABS.forEach(function (t) {
@@ -199,6 +199,7 @@
     });
     if (name === 'space') loadSpace();
     if (name === 'cal') loadCal();
+    if (name === 'race') loadRace();
   }
   TABS.forEach(function (t) { $('tab-' + t).addEventListener('click', function () { selectTab(t); }); });
 
@@ -1139,7 +1140,7 @@
       if (res.ok) {
         state.staff = { name: name, pin: pin, me: res.me };
         save(K.staff, state.staff);
-        drop(K.session); drop(K.recent); drop(K.space); drop(K.cal); drop(K.sov); drop(K.scal);   // une seule session à la fois sur l'appareil
+        drop(K.session); drop(K.recent); drop(K.space); drop(K.cal); drop(K.race); drop(K.sov); drop(K.scal);   // une seule session à la fois sur l'appareil
         state.session = null; state.ov = null; state.detail = {}; state.sel = null; state.mentalAll = null;
         enterStaff();
       } else {
@@ -1425,18 +1426,14 @@
 
   /* -- Classement -- */
 
-  function renderRanking(ov) {
-    var body = $('s-rank-body');
-    body.textContent = '';
-    function numFr(v) {
-      if (v === null || v === undefined || v === '') return null;
-      var x = parseFloat(String(v).replace(',', '.').replace('+', ''));
-      return isFinite(x) ? x : null;
-    }
-    var rows = ov.players.map(function (p) {
-      var s = p.selection || {};
-      return { name: p.name, role: s.role, avg: numFr(s.avg), n: parseInt(s.retained, 10) || 0, ok: s.selectable === 'Oui' };
-    });
+  function numFr(v) {
+    if (v === null || v === undefined || v === '') return null;
+    var x = parseFloat(String(v).replace(',', '.').replace('+', ''));
+    return isFinite(x) ? x : null;
+  }
+
+  /** Deux classements (sélectionnables / moins de 5 tours) : moyenne de l'écart au SSS et nombre de tours qui comptent. rows : { name, role, avg (nombre ou null), n, ok }. */
+  function renderRankGroups(body, rows, since, meName) {
     function byAvg(a, b) {
       if (a.avg === null && b.avg === null) return b.n - a.n || a.name.localeCompare(b.name, 'fr');
       if (a.avg === null) return 1;
@@ -1449,11 +1446,13 @@
       var ul = el('ul', 'rk');
       var rank = 0;
       list.sort(byAvg).forEach(function (r) {
-        var li = el('li');
+        var li = el('li', meName && r.name === meName ? 'me' : '');
         var pos = r.avg === null ? 0 : ++rank;
         li.appendChild(el('span', 'pos' + (!target && pos && pos <= 3 ? ' p' + pos : ''), pos ? String(pos) : '–'));
         var who = el('div', 'who');
-        who.appendChild(el('b', null, r.name));
+        var nm = el('b', null, r.name);
+        if (meName && r.name === meName) nm.appendChild(el('span', 'tag-me', 'Toi'));
+        who.appendChild(nm);
         if (r.role) who.appendChild(roleBadge(r.role, null, true));
         if (target) {
           var pr = el('div', 'prog');
@@ -1472,11 +1471,55 @@
       c.appendChild(ul);
       body.appendChild(c);
     }
-    var since = ov.period && ov.period.start ? ' depuis le ' + frDate(ov.period.start) : '';
     group('Sélectionnables', '5 tours retenus ou plus : le critère de sélection est rempli. Moyenne de l’écart au SSS sur les tours qui comptent (compétitions et tours annoncés' + since + '). Plus bas = mieux.',
       rows.filter(function (r) { return r.ok; }));
     group('Moins de 5 tours', 'Pas encore sélectionnables. Moyenne de l’écart au SSS sur les tours déjà joués' + since + ' : indicative. La barre montre la progression vers les 5 tours.',
       rows.filter(function (r) { return !r.ok; }), 5);
+  }
+
+  function renderRanking(ov) {
+    var body = $('s-rank-body');
+    body.textContent = '';
+    var rows = ov.players.map(function (p) {
+      var s = p.selection || {};
+      return { name: p.name, role: s.role, avg: numFr(s.avg), n: parseInt(s.retained, 10) || 0, ok: s.selectable === 'Oui' };
+    });
+    renderRankGroups(body, rows, ov.period && ov.period.start ? ' depuis le ' + frDate(ov.period.start) : '');
+  }
+
+  /* ---------- Race To Marrakech (onglet joueur : classement de l'onglet « Equipe 2027 », lecture seule) ---------- */
+
+  async function loadRace() {
+    if (!state.session) return;
+    var cached = load(K.race, null);
+    if (cached && Array.isArray(cached.players)) { renderRace(cached); hideMsg('race-msg'); }
+    else { cached = null; $('race-body').textContent = ''; setMsg('race-msg', 'Chargement…', 'ok'); }
+    try {
+      var res = await post({ action: 'race', player: state.session.player, pin: state.session.pin });
+      if (!state.session) return;
+      if (res.ok) { save(K.race, res); hideMsg('race-msg'); renderRace(res); }
+      else handleServerError(res.error || { code: 'SERVER', message: 'Erreur inconnue.' }, 'race-msg');
+    } catch (e) {
+      if (cached) setMsg('race-msg', 'Hors ligne : classement de la dernière connexion.', 'ok');
+      else setMsg('race-msg', 'Pas de réseau. Le classement s’affichera dès que le réseau revient.', 'err');
+    }
+  }
+
+  function renderRace(d) {
+    var body = $('race-body');
+    body.textContent = '';
+    var me = state.session && state.session.player;
+    body.appendChild(card('Race To Marrakech', d.period || 'Classement de l’équipe 2027.'));
+    var rows = d.players.map(function (p) {
+      return { name: p.name, role: p.role, avg: numFr(p.avg), n: parseInt(p.retained, 10) || 0, ok: p.selectable === 'Oui' };
+    });
+    renderRankGroups(body, rows, '', me);
+    var mine = d.players.filter(function (p) { return p.name === me; })[0];
+    if (mine && mine.selectable !== 'Oui' && d.me && d.me.missing) {
+      var c = card('Ce qu’il te manque', 'Pour être sélectionnable.');
+      c.appendChild(el('p', null, d.me.missing));
+      body.appendChild(c);
+    }
   }
 
   /* -- Calendrier -- */
