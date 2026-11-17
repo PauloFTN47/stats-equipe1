@@ -958,7 +958,7 @@
     $('mental').hidden = kind === 'training';
     if (kind === 'training') return;
     var notes = mentalNotes[kind];
-    $('mental-sub').textContent = 'optionnel · ' + MENTAL[kind].sub;
+    $('mental-sub').textContent = MENTAL[kind].sub;
     var list = $('mental-list');
     list.textContent = '';
     MENTAL[kind].items.forEach(function (it, i) {
@@ -994,10 +994,18 @@
     updateMentalLive();
   }
 
+  /** Bouton « Mental » : déplie ou replie les questions (replié par défaut). */
+  function setMentalOpen(open) {
+    $('mental-body').hidden = !open;
+    $('mental-toggle').setAttribute('aria-expanded', String(open));
+  }
+  $('mental-toggle').addEventListener('click', function () { setMentalOpen($('mental-body').hidden); });
+
   function updateMentalLive() {
     if (mentalKind(roundType()) === 'training') { $('mental-live').textContent = ''; return; }
     var notes = mentalNotes[mentalKind(roundType())];
     var rated = notes.filter(function (n) { return n > 0; }).length;
+    $('mental-state').textContent = rated === 0 ? 'optionnel' : (rated === notes.length ? 'noté' : rated + '/' + notes.length);
     $('mental-live').textContent = rated === notes.length
       ? mentalText(mentalScore(roundType(), notes))
       : rated === 0
@@ -1040,7 +1048,7 @@
       var mn = mentalNotes.match;
       var rated = mn.filter(function (v) { return v >= 1 && v <= 4; }).length;
       if (rated === mn.length) p.mental = mn.slice();
-      else if (rated > 0) throw new Error('Mental (optionnel) : note les ' + mn.length + ' critères de 1 à 4, ou laisse-les tous vides.');
+      else if (rated > 0) { setMentalOpen(true); throw new Error('Mental (optionnel) : note les ' + mn.length + ' critères de 1 à 4, ou laisse-les tous vides.'); }
     }
     var n = [p.fairways, p.greens, p.putts].filter(function (v) { return v !== ''; }).length;
     if (n !== 0 && n !== 3) throw new Error('Fairways, greens et putts vont ensemble : renseigne les trois ou aucun.');
@@ -1100,6 +1108,7 @@
   function clearForm() {
     ['name', 'course-other', 'strokes', 'fairways', 'greens', 'putts', 'chipMade', 'chipTried', 'comment'].forEach(function (id) { $(id).value = ''; });
     mentalNotes = { match: [0, 0, 0, 0], training: [0, 0, 0, 0, 0] };
+    setMentalOpen(false);
     renderMental();
     updateLive();
   }

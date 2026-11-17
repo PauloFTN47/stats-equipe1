@@ -54,6 +54,11 @@ button {
   width: 100%; font: inherit; font-weight: 650; border: 0; border-radius: 12px; padding: 14px; min-height: 50px;
   cursor: pointer; background: var(--accent); color: var(--accent-ink); margin-top: 6px;
 }
+.mental-toggle { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 0 !important; text-align: left; font-weight: 650; }
+.mental-toggle .hint { font-weight: 400; }
+.mental-state { font-size: .85rem; color: var(--muted); white-space: nowrap; font-weight: 400; }
+.mental-toggle[aria-expanded="true"] .mental-state::after { content: ' ▲'; }
+.mental-toggle[aria-expanded="false"] .mental-state::after { content: ' ▼'; }
 button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); margin-top: 8px; }
 button.link { width: auto; min-height: 0; padding: 6px 10px; margin: 0; background: transparent; color: var(--accent); font-weight: 650; }
 button:disabled { opacity: .55; cursor: default; }

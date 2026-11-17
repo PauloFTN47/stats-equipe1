@@ -16,8 +16,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=28">
-<script src="theme.js?v=28"></script>
+<link rel="stylesheet" href="styles.css?v=29">
+<script src="theme.js?v=29"></script>
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
 <body>
@@ -190,11 +190,16 @@
         </fieldset>
 
         <fieldset id="mental">
-          <legend>Mental <span class="hint" id="mental-sub"></span></legend>
+          <button type="button" class="secondary mental-toggle" id="mental-toggle" aria-expanded="false" aria-controls="mental-body">
+            <span>Mental <span class="hint" id="mental-sub"></span></span>
+            <span class="mental-state" id="mental-state"></span>
+          </button>
+          <div id="mental-body" hidden>
           <p class="hint-line">Cette partie est facultative : tu peux envoyer ta compétition sans la remplir. Sinon, note les 4 critères de 1 à 4 : <b>4</b> très bon · <b>3</b> bon · <b>2</b> moyen · <b>1</b> mauvais. Un nouveau clic sur une note la retire.</p>
           <div id="mental-list"></div>
           <div class="live" id="mental-live" aria-live="polite"></div>
           <p class="hint-line">Ces notes servent à ton auto-évaluation : repérer la qualité mentale à travailler en premier. Elles sont confidentielles : seul le capitaine lit les notes individuelles. Le staff voit uniquement le critère le plus faible de l’équipe (à partir de 5 joueurs). Il n’y a aucun classement entre joueurs.</p>
+          </div>
         </fieldset>
 
         <fieldset>
@@ -227,7 +232,7 @@
   </section>
 
 </main>
-<script src="config.js?v=28"></script>
-<script src="app.js?v=28"></script>
+<script src="config.js?v=29"></script>
+<script src="app.js?v=29"></script>
 </body>
 </html>
