@@ -344,3 +344,9 @@ input, select, textarea { border-color: var(--glass-line); -webkit-backdrop-filt
   html[data-theme="dark"] { --card: #172019; --field: #1d2b21; --chip: #1d2b21; }
   .card, .banner, .pitem, .mdet, .hero, input, select, textarea, .tabs button, .seg button, .rate button, button.secondary { -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
+
+/* Rappels par notification */
+#push-box { margin-bottom: 12px; }
+#push-box .push .state { margin: 8px 0 0; font-size: .92rem; }
+#push-box .push button.pres-btn { margin-top: 10px; }
+#push-box .push button.link { margin-top: 4px; padding-left: 0; }

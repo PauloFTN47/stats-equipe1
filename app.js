@@ -136,8 +136,10 @@
     updatePending();
     showIosHint();
     selectTab('form');
+    if (/[?&]tab=cal(&|$)/.test(window.location.search)) selectTab('cal');   // ouverture depuis une notification de rappel
     show('app');
     flushQueue();
+    pushSession();
   }
 
   async function refreshMe() {
@@ -182,6 +184,7 @@
   function logout() {
     drop(K.session);
     drop(K.recent); drop(K.space); drop(K.cal); drop(K.race);
+    pushEnd();
     state.session = null;
     enterLogin();
   }
@@ -198,7 +201,7 @@
       $('tab-' + t).setAttribute('aria-selected', String(t === name));
     });
     if (name === 'space') loadSpace();
-    if (name === 'cal') loadCal();
+    if (name === 'cal') { loadCal(); renderPush(); }
     if (name === 'race') loadRace();
   }
   TABS.forEach(function (t) { $('tab-' + t).addEventListener('click', function () { selectTab(t); }); });
@@ -613,6 +616,85 @@
     box.appendChild(svg);
     box.appendChild(legend(seasons.map(function (s, si) { return { cls: 'lg-bar-' + si, label: s.label }; })));
     return box;
+  }
+
+  /* ---------- Rappels par notification (OneSignal) : 2 semaines et 1 semaine avant chaque date validée ---------- */
+
+  var PUSH_APP_ID = 'dc8bffe0-3865-4c0a-9787-c7d3766406d7';   // identifiant public de l'appli OneSignal
+  var push = { started: false, sdk: null };
+
+  function pushBase() { return window.location.pathname.replace(/[^\/]*$/, ''); }
+  function isStandalone() { return !!(window.navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)); }
+  function isIosDevice() { return /iphone|ipad|ipod/i.test(window.navigator.userAgent) || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1); }
+
+  // Démarre le SDK quand un joueur est connecté. Le nom du joueur sert d'identifiant pour viser les rappels.
+  function pushStart() {
+    if (SIM || push.started || !state.session) return;
+    push.started = true;
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(async function (OneSignal) {
+      try {
+        await OneSignal.init({
+          appId: PUSH_APP_ID,
+          safari_web_id: 'web.onesignal.auto.55479a10-4eda-4299-901a-290da3fd1836',   // fourni par OneSignal (Safari)
+          serviceWorkerPath: pushBase() + 'push/onesignal/OneSignalSDKWorker.js',
+          serviceWorkerParam: { scope: pushBase() + 'push/onesignal/' },   // scope à part : ne gêne pas le cache hors ligne de l'appli (sw.js)
+          notifyButton: { enable: false }
+        });
+        push.sdk = OneSignal;
+        if (state.session) await OneSignal.login(state.session.player);
+        OneSignal.User.PushSubscription.addEventListener('change', renderPush);
+        OneSignal.Notifications.addEventListener('permissionChange', renderPush);
+      } catch (e) { push.sdk = null; }
+      renderPush();
+    });
+  }
+
+  function pushSession() {
+    if (SIM || !state.session) return;
+    if (push.sdk) { Promise.resolve(push.sdk.login(state.session.player)).catch(function () { /* hors ligne */ }); renderPush(); }
+    else pushStart();
+  }
+
+  function pushEnd() {
+    if (push.sdk) { try { Promise.resolve(push.sdk.logout()).catch(function () { /* ignore */ }); } catch (e) { /* ignore */ } }
+  }
+
+  function renderPush() {
+    var box = $('push-box');
+    if (!box) return;
+    box.textContent = '';
+    var sdk = push.sdk;
+    var ios = isIosDevice() && !isStandalone();
+    if (SIM || !state.session || (!sdk && !ios)) { box.hidden = true; return; }
+    var c = card('🔔 Rappels des dates', 'Une notification 2 semaines, puis 1 semaine avant chaque date validée.');
+    c.classList.add('push');
+    if (ios) {
+      c.appendChild(el('p', 'state', 'Sur iPhone, ajoute d’abord l’appli à l’écran d’accueil (bouton Partager, puis « Sur l’écran d’accueil »), puis ouvre-la depuis son icône pour activer les rappels.'));
+    } else if (!sdk.Notifications.isPushSupported()) {
+      box.hidden = true; return;
+    } else if (window.Notification && window.Notification.permission === 'denied') {
+      c.appendChild(el('p', 'state', 'Les notifications sont bloquées pour cette appli. Autorise-les dans les réglages du téléphone, puis reviens ici.'));
+    } else if (sdk.User.PushSubscription.optedIn) {
+      c.appendChild(el('p', 'state', '✓ Rappels activés sur cet appareil.'));
+      var off = el('button', 'link', 'Désactiver');
+      off.type = 'button';
+      off.addEventListener('click', function () { off.disabled = true; Promise.resolve(sdk.User.PushSubscription.optOut()).catch(function () { /* ignore */ }).then(renderPush); });
+      c.appendChild(off);
+    } else {
+      var on = el('button', 'pres-btn', 'Activer les rappels');
+      on.type = 'button';
+      on.addEventListener('click', function () {
+        on.disabled = true;
+        Promise.resolve(sdk.Notifications.requestPermission())
+          .then(function () { return sdk.User.PushSubscription.optIn(); })
+          .catch(function () { /* refusé ou indisponible */ })
+          .then(renderPush);
+      });
+      c.appendChild(on);
+    }
+    box.appendChild(c);
+    box.hidden = false;
   }
 
   /* ---------- Calendrier (onglet « Planning 2027 » du Sheets, lecture seule) ---------- */
