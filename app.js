@@ -954,8 +954,11 @@
 
   function renderMental() {
     var kind = mentalKind(roundType());
+    // Tour d'entraînement : plus de saisie mentale (les anciennes notes restent visibles dans Mon espace)
+    $('mental').hidden = kind === 'training';
+    if (kind === 'training') return;
     var notes = mentalNotes[kind];
-    $('mental-sub').textContent = MENTAL[kind].sub;
+    $('mental-sub').textContent = 'optionnel · ' + MENTAL[kind].sub;
     var list = $('mental-list');
     list.textContent = '';
     MENTAL[kind].items.forEach(function (it, i) {
@@ -978,8 +981,8 @@
         b.setAttribute('role', 'radio');
         b.setAttribute('aria-checked', String(notes[i] === n));
         b.addEventListener('click', function () {
-          notes[i] = n;
-          Array.prototype.forEach.call(g.children, function (c, k) { c.setAttribute('aria-checked', String(k + 1 === n)); });
+          notes[i] = notes[i] === n ? 0 : n;   // re-clic = on retire la note
+          Array.prototype.forEach.call(g.children, function (c, k) { c.setAttribute('aria-checked', String(k + 1 === notes[i])); });
           disarm(); hideMsg('msg');
           updateMentalLive();
         });
@@ -992,11 +995,14 @@
   }
 
   function updateMentalLive() {
+    if (mentalKind(roundType()) === 'training') { $('mental-live').textContent = ''; return; }
     var notes = mentalNotes[mentalKind(roundType())];
-    var done = notes.every(function (n) { return n > 0; });
-    $('mental-live').textContent = done
+    var rated = notes.filter(function (n) { return n > 0; }).length;
+    $('mental-live').textContent = rated === notes.length
       ? mentalText(mentalScore(roundType(), notes))
-      : notes.filter(function (n) { return n > 0; }).length + '/' + notes.length + ' critères notés';
+      : rated === 0
+        ? 'Optionnel : tu peux laisser cette partie vide.'
+        : rated + '/' + notes.length + ' critères notés : note les ' + notes.length + ' ou aucun.';
   }
 
   function val(id) { return $(id).value.trim(); }
@@ -1029,9 +1035,13 @@
       p.courseOther = val('course-other');
       p.par = intField('par', 60, 80, 'Par du parcours', true);
     }
-    var mn = mentalNotes[mentalKind(p.type)];
-    if (!mn.every(function (v) { return v >= 1 && v <= 4; })) throw new Error('Mental : note les ' + mn.length + ' critères de 1 à 4.');
-    p.mental = mn.slice();
+    // Mental : optionnel en compétition (les 4 critères ou aucun), absent en entraînement.
+    if (mentalKind(p.type) === 'match') {
+      var mn = mentalNotes.match;
+      var rated = mn.filter(function (v) { return v >= 1 && v <= 4; }).length;
+      if (rated === mn.length) p.mental = mn.slice();
+      else if (rated > 0) throw new Error('Mental (optionnel) : note les ' + mn.length + ' critères de 1 à 4, ou laisse-les tous vides.');
+    }
     var n = [p.fairways, p.greens, p.putts].filter(function (v) { return v !== ''; }).length;
     if (n !== 0 && n !== 3) throw new Error('Fairways, greens et putts vont ensemble : renseigne les trois ou aucun.');
     if ((p.chipMade === '') !== (p.chipTried === '')) throw new Error('Chip-putts : renseigne les réussis et les tentés, ou aucun des deux.');
@@ -1100,7 +1110,7 @@
   });
   $('type').addEventListener('change', renderMental);
 
-  /** Bascule Compétition / Tour d'entraînement dans Saisir : le tour d'entraînement est de type 3 (grille mentale d'entraînement). */
+  /** Bascule Compétition / Tour d'entraînement dans Saisir : le tour d'entraînement est de type 3 (sans saisie mentale). */
   state.mode = 'match';
   function setMode(mode) {
     state.mode = mode;
