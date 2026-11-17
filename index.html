@@ -13,7 +13,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=24">
+<link rel="stylesheet" href="styles.css?v=25">
+<script src="theme.js?v=25"></script>
 </head>
 <body>
 <main>
@@ -28,6 +29,7 @@
 
   <!-- Connexion -->
   <section id="screen-login" hidden>
+    <div class="theme-row"><button type="button" class="link theme-toggle" aria-label="Changer de thème">◐ Auto</button></div>
     <img class="logo" src="icons/logo-256.png" alt="Casteljaloux Golf Club" width="128" height="128">
     <h1>Joueurs CASTEL</h1>
     <p class="sub">Connecte-toi avec ton nom et ton code personnel.</p>
@@ -44,6 +46,7 @@
 
   <!-- Connexion staff -->
   <section id="screen-staff-login" hidden>
+    <div class="theme-row"><button type="button" class="link theme-toggle" aria-label="Changer de thème">◐ Auto</button></div>
     <img class="logo" src="icons/logo-256.png" alt="Casteljaloux Golf Club" width="128" height="128">
     <h1>Staff</h1>
     <p class="sub">Connecte-toi avec ton identifiant staff et ton code staff (différent d’un code joueur).</p>
@@ -66,6 +69,7 @@
         <div class="who" id="staff-who"></div>
         <div class="role-sub" id="staff-role"></div>
       </div>
+      <button type="button" class="link theme-toggle" aria-label="Changer de thème">◐ Auto</button>
       <button type="button" class="link" id="staff-logout">Quitter</button>
     </header>
     <nav class="tabs staff" role="tablist">
@@ -91,6 +95,7 @@
         <div class="who" id="who"></div>
         <div class="sim" id="sim" hidden>Mode simulation : rien n’est écrit</div>
       </div>
+      <button type="button" class="link theme-toggle" aria-label="Changer de thème">◐ Auto</button>
       <button type="button" class="link" id="logout">Changer</button>
     </header>
 
@@ -217,7 +222,7 @@
   </section>
 
 </main>
-<script src="config.js?v=24"></script>
-<script src="app.js?v=24"></script>
+<script src="config.js?v=25"></script>
+<script src="app.js?v=25"></script>
 </body>
 </html>

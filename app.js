@@ -679,8 +679,11 @@
 
   /* -- Présence aux échéances : « Valider ma présence » (joueur), liste des présents (staff) -- */
 
-  // Le joueur ne peut valider que les dates validées, pas encore passées.
-  function presenceOpen(e, today) { return e.status === 'Validé' && (e.end || e.date) >= today && !!e.key; }
+  // Les « Annonce équipe » sont de simples annonces : pas de présence à valider.
+  function isAnnounce(e) { return e.announce === true || /^annonce/i.test(String(e.title || '').trim()); }
+
+  // Le joueur ne peut valider que les dates validées, pas encore passées, hors annonces.
+  function presenceOpen(e, today) { return e.status === 'Validé' && !isAnnounce(e) && (e.end || e.date) >= today && !!e.key; }
 
   function presenceNode(e, today, ctx) {
     if (!ctx) return null;
@@ -736,6 +739,7 @@
 
   // Staff : qui est présent, et pour les dates validées à venir, qui n'a pas encore répondu.
   function staffPresenceNode(e, today) {
+    if (isAnnounce(e)) return null;
     var yes = e.present || [], wait = e.waiting || [];
     var open = presenceOpen(e, today);
     if (!open && !yes.length) return null;

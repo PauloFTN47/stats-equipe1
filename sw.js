@@ -1,14 +1,15 @@
 // Service worker : met l'appli en cache pour qu'elle s'ouvre sans réseau.
 // Les appels à l'API Apps Script ne passent jamais par le cache.
-// Pour publier une nouvelle version de l'appli : changer le numéro ci-dessous ET le « ?v= » de styles.css, app.js et config.js
+// Pour publier une nouvelle version de l'appli : changer le numéro ci-dessous ET le « ?v= » de styles.css, theme.js, app.js et config.js
 // dans index.html et dans la liste SHELL (le navigateur ne peut plus mélanger ancien et nouveau fichier).
-var VERSION = 'stats-castel-v24';
+var VERSION = 'stats-castel-v25';
 var SHELL = [
   './',
   'index.html',
-  'styles.css?v=24',
-  'app.js?v=24',
-  'config.js?v=24',
+  'styles.css?v=25',
+  'app.js?v=25',
+  'config.js?v=25',
+  'theme.js?v=25',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
