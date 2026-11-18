@@ -155,24 +155,45 @@ table.stats tr:last-child th, table.stats tr:last-child td { border-bottom: 0; }
 .event .inf { font-size: .85rem; margin-top: 3px; }
 .event .top { margin-bottom: 4px; }
 
-/* Date validée : très visible */
-.event.valid { background: var(--ok-bg); border: 2px solid var(--accent); border-left-width: 8px; }
-.event.valid .when { background: var(--accent); color: var(--accent-ink); }
-.event.valid .when span { color: var(--accent-ink); opacity: .9; }
+/* Code couleur par type d'évènement (--tc : couleur, --tcs : fond léger, --tci : texte sur fond de la couleur) */
+.t-championnat { --tc: #7a3fc4; --tcs: rgba(122,63,196,.12); --tci: #fff; }
+.t-matchplay { --tc: #1d5fa8; --tcs: rgba(29,95,168,.12); --tci: #fff; }
+.t-gp { --tc: #c2570c; --tcs: rgba(194,87,12,.12); --tci: #fff; }
+.t-amical { --tc: #0e8a8a; --tcs: rgba(14,138,138,.12); --tci: #fff; }
+.t-training { --tc: #1f6b3a; --tcs: rgba(31,107,58,.12); --tci: #fff; }
+.t-annonce { --tc: #6b7280; --tcs: rgba(107,114,128,.13); --tci: #fff; }
+.t-autre { --tc: #8a5a44; --tcs: rgba(138,90,68,.12); --tci: #fff; }
+html[data-theme="dark"] .t-championnat { --tc: #b794f6; --tcs: rgba(183,148,246,.15); --tci: #14091f; }
+html[data-theme="dark"] .t-matchplay { --tc: #6aa8f0; --tcs: rgba(106,168,240,.15); --tci: #06121f; }
+html[data-theme="dark"] .t-gp { --tc: #f2a65a; --tcs: rgba(242,166,90,.15); --tci: #1f1005; }
+html[data-theme="dark"] .t-amical { --tc: #4fd1c5; --tcs: rgba(79,209,197,.15); --tci: #04201d; }
+html[data-theme="dark"] .t-training { --tc: #4fb877; --tcs: rgba(79,184,119,.16); --tci: #06130b; }
+html[data-theme="dark"] .t-annonce { --tc: #9aa3b2; --tcs: rgba(154,163,178,.15); --tci: #0f1511; }
+html[data-theme="dark"] .t-autre { --tc: #c9a27a; --tcs: rgba(201,162,122,.15); --tci: #1a1007; }
+
+/* Date validée : couleur pleine du type */
+.event.valid { background: var(--tcs); border: 2px solid var(--tc); border-left-width: 8px; }
+.event.valid .when { background: var(--tc); color: var(--tci); }
+.event.valid .when span { color: var(--tci); opacity: .9; }
 .event.valid .s { color: var(--ink); }
 .event.valid .pl { font-weight: 700; font-size: 1.02rem; color: var(--ink); }
 .event.valid .pl.none { font-weight: 500; font-size: .93rem; color: var(--muted); }
 .event.valid .inf { color: var(--ink); }
-/* Date pas encore validée : discrète */
-.event.tbc { background: transparent; border: 1px dashed var(--line); }
-.event.tbc .when { background: var(--soft); color: var(--muted); }
-.event.tbc .when span { color: var(--muted); }
+/* Date pas encore validée : discrète, mais le liseré garde la couleur du type */
+.event.tbc { background: transparent; border: 1px dashed var(--line); border-left: 6px solid var(--tc); }
+.event.tbc .when { background: var(--tcs); color: var(--tc); }
+.event.tbc .when span { color: var(--tc); }
 .event.tbc .t { font-weight: 600; color: var(--muted); }
 .event.tbc .s, .event.tbc .pl, .event.tbc .inf { color: var(--muted); }
 .badge.strong { background: var(--accent); color: var(--accent-ink); font-weight: 800; letter-spacing: .04em; }
 .badge.wait { background: transparent; border: 1px solid var(--warn); color: var(--warn); }
+.badge.typ { background: var(--tcs); color: var(--tc); border: 1px solid var(--tc); }
 
-.hero { background: var(--accent); color: var(--accent-ink); border-radius: 16px; padding: 16px 18px; margin-bottom: 12px; }
+.tlegend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 0; font-size: .82rem; color: var(--muted); }
+.tlegend .tl { display: inline-flex; align-items: center; gap: 6px; }
+.tlegend .tl i { width: 12px; height: 12px; border-radius: 4px; background: var(--tc); display: inline-block; }
+
+.hero { background: var(--tc, var(--accent)); color: var(--tci, var(--accent-ink)); border-radius: 16px; padding: 16px 18px; margin-bottom: 12px; }
 .hero .k { font-size: .78rem; text-transform: uppercase; letter-spacing: .07em; font-weight: 700; opacity: .92; }
 .hero .ht { font-size: 1.4rem; font-weight: 800; line-height: 1.2; margin: 6px 0 2px; }
 .hero .hd { font-size: 1rem; }
@@ -185,13 +206,21 @@ table.stats tr:last-child th, table.stats tr:last-child td { border-bottom: 0; }
 details.past > summary { cursor: pointer; font-weight: 650; }
 details.past .event.valid, details.past .event.tbc { opacity: .75; }
 
-/* Présences aux échéances */
-.pres { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.pres button.pres-btn { width: 100%; margin: 0; min-height: 46px; padding: 10px 16px; }
-.pres.on { justify-content: flex-start; }
-.hero .pres button.pres-btn { background: var(--accent-ink); color: var(--accent); }
-.hero .pres .badge.ok { background: var(--accent-ink); color: var(--accent); }
-.hero .pres button.link { color: var(--accent-ink); text-decoration: underline; }
+/* Présences aux échéances : un choix parmi Présent / un seul jour / Pas disponible */
+.pres { margin-top: 10px; }
+.pres-opts { display: flex; flex-wrap: wrap; gap: 8px; }
+.pres button.pres-btn { flex: 1 1 140px; width: auto; margin: 0; min-height: 46px; padding: 10px 14px; font-size: .93rem; background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.pres button.pres-btn.main { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); flex-basis: 100%; }
+.pres button.pres-btn.part { border-color: var(--warn); color: var(--warn); }
+.pres button.pres-btn.no { border-color: var(--err); color: var(--err); }
+.pres button.pres-btn.main[aria-pressed="true"] { background: var(--ok-bg); color: var(--accent); border: 2px solid var(--accent); }
+.pres button.pres-btn.part[aria-pressed="true"] { background: var(--warn-bg); border-width: 2px; font-weight: 700; }
+.pres button.pres-btn.no[aria-pressed="true"] { background: var(--err); color: var(--accent-ink); border-color: var(--err); font-weight: 700; }
+.pres button.pres-btn:disabled { opacity: .6; }
+.pres-hint { margin-top: 6px; font-size: .8rem; color: var(--muted); }
+.hero .pres button.pres-btn { background: var(--tci); color: var(--tc); border-color: transparent; }
+.hero .pres button.pres-btn[aria-pressed="true"] { background: transparent; color: var(--tci); border: 2px solid var(--tci); font-weight: 800; }
+.hero .pres-hint { color: var(--tci); opacity: .9; }
 .pres-staff { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-size: .88rem; }
 .pres-staff .ph b { font-size: .95rem; }
 .pres-staff .ph span { color: var(--muted); }

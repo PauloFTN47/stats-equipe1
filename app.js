@@ -742,11 +742,14 @@
   // Date validée : carte verte, bandeau « VALIDÉ », lieu en gros. Date non validée : carte pâle en pointillés.
   function eventNode(e, today, ctx) {
     var valid = e.status === 'Validé';
-    var li = el('li', 'event ' + (valid ? 'valid' : 'tbc'));
+    var type = eventType(e);
+    var li = el('li', 'event t-' + type + ' ' + (valid ? 'valid' : 'tbc'));
     li.appendChild(whenBlock(e));
     var what = el('div', 'what');
     var top = el('div', 'top');
     top.appendChild(el('span', 'badge ' + (valid ? 'strong' : 'wait'), valid ? '✓ VALIDÉ' : 'À CONFIRMER'));
+    top.appendChild(document.createTextNode(' '));
+    top.appendChild(el('span', 'badge typ', TYPES[type]));
     what.appendChild(top);
     what.appendChild(el('div', 't', e.title));
     what.appendChild(el('div', 's', dayText(e.date, today) + (e.end ? ' → ' + dayText(e.end, today) : '')));
@@ -764,7 +767,48 @@
   // Les « Annonce équipe » sont de simples annonces : pas de présence à valider.
   function isAnnounce(e) { return e.announce === true || /^annonce/i.test(String(e.title || '').trim()); }
 
-  // Le joueur ne peut valider que les dates validées, pas encore passées, hors annonces.
+  /* -- Types d'évènement : un code couleur par type (classes .t-xxx dans styles.css) -- */
+  var TYPES = { championnat: 'Championnat', matchplay: 'Match Play', gp: 'Grand Prix', amical: 'Match amical', training: 'Entraînement', annonce: 'Annonce', autre: 'Autre' };
+  var TYPE_ORDER = ['championnat', 'matchplay', 'gp', 'amical', 'training', 'annonce', 'autre'];
+
+  // Le type se déduit du titre (colonne « Type d'évènement » du Planning).
+  function eventType(e) {
+    var t = String(e.title || '').toLowerCase();
+    if (isAnnounce(e)) return 'annonce';
+    if (/championnat/.test(t)) return 'championnat';
+    if (/match\s*-?\s*play|troph/.test(t)) return 'matchplay';
+    if (/grand\s*prix|\bgp\b/.test(t)) return 'gp';
+    if (/amical/.test(t)) return 'amical';
+    if (/entra[iî]nement|stage/.test(t)) return 'training';
+    return 'autre';
+  }
+
+  // Entraînement sur deux jours, samedi puis dimanche : le joueur peut ne venir qu'un des deux jours.
+  function isWeekendTraining(e) {
+    return eventType(e) === 'training' && !!e.end && parseIso(e.date).getDay() === 6 && parseIso(e.end).getDay() === 0;
+  }
+
+  // Réponse du joueur : 'present', 'sat', 'sun', 'absent' ou '' (pas de réponse).
+  // Les anciennes données en cache n'ont que « mine » : c'était une présence validée.
+  function myStatus(e) { return e.myStatus !== undefined ? e.myStatus : (e.mine ? 'present' : ''); }
+
+  // Le joueur peut répondre à toute échéance à venir, hors annonces.
+  function canAnswer(e, today) { return !isAnnounce(e) && (e.end || e.date) >= today && !!e.key; }
+
+  // « Valider ma présence » (et les jours seuls) : seulement une fois la date validée. « Pas disponible » : dès maintenant.
+  function presenceOptions(e) {
+    var o = [];
+    if (e.status === 'Validé') {
+      o.push({ s: 'present', cls: 'main', off: 'Valider ma présence', on: '✓ Présence validée' });
+      if (isWeekendTraining(e)) {
+        o.push({ s: 'sat', cls: 'part', off: 'Dispo que le samedi', on: '✓ Dispo que le samedi' });
+        o.push({ s: 'sun', cls: 'part', off: 'Dispo que le dimanche', on: '✓ Dispo que le dimanche' });
+      }
+    }
+    o.push({ s: 'absent', cls: 'no', off: 'Pas disponible', on: '✗ Pas disponible' });
+    return o;
+  }
+
   function presenceOpen(e, today) { return e.status === 'Validé' && !isAnnounce(e) && (e.end || e.date) >= today && !!e.key; }
 
   function presenceNode(e, today, ctx) {
@@ -773,37 +817,41 @@
   }
 
   function playerPresenceNode(e, today, ctx) {
-    if (!presenceOpen(e, today)) return null;
-    var box = el('div', 'pres' + (e.mine ? ' on' : ''));
-    if (e.mine) {
-      box.appendChild(el('span', 'badge ok', '✓ Présence validée'));
-      var undo = el('button', 'link', 'Annuler');
-      undo.type = 'button';
-      undo.addEventListener('click', function () { setPresence(e, false, ctx, undo); });
-      box.appendChild(undo);
-    } else {
-      var b = el('button', 'pres-btn', 'Valider ma présence');
+    if (!canAnswer(e, today)) return null;
+    var cur = myStatus(e);
+    var box = el('div', 'pres' + (cur ? ' on' : ''));
+    var opts = el('div', 'pres-opts');
+    presenceOptions(e).forEach(function (o) {
+      var active = cur === o.s;
+      var b = el('button', 'pres-btn ' + o.cls, active ? o.on : o.off);
       b.type = 'button';
-      b.addEventListener('click', function () { setPresence(e, true, ctx, b); });
-      box.appendChild(b);
-    }
+      b.setAttribute('aria-pressed', String(active));
+      b.addEventListener('click', function () { setPresence(e, active ? '' : o.s, ctx, b); });   // retoucher son choix l'annule
+      opts.appendChild(b);
+    });
+    box.appendChild(opts);
+    if (cur) box.appendChild(el('div', 'pres-hint', 'Touche ton choix une 2e fois pour l’annuler.'));
     return box;
   }
 
-  async function setPresence(e, present, ctx, btn) {
+  async function setPresence(e, status, ctx, btn) {
     if (!state.session || state.presBusy) return;
     state.presBusy = true;
     btn.disabled = true;
+    function apply(st) {
+      e.myStatus = st;
+      e.mine = st === 'present' || st === 'sat' || st === 'sun';
+    }
     try {
       if (SIM) {
-        e.mine = present;   // simulation : rien n'est écrit dans le Sheets
+        apply(status);   // simulation : rien n'est écrit dans le Sheets
         renderCal(ctx.d);
         return;
       }
-      var res = await post({ action: 'presence', player: state.session.player, pin: state.session.pin, key: e.key, present: present });
+      var res = await post({ action: 'presence', player: state.session.player, pin: state.session.pin, key: e.key, status: status });
       if (!state.session) return;
       if (res.ok) {
-        e.mine = !!res.present;
+        apply(res.status !== undefined ? res.status : (res.present ? 'present' : ''));
         save(K.cal, ctx.d);
         hideMsg('cal-msg');
         renderCal(ctx.d);
@@ -813,25 +861,40 @@
       }
     } catch (x) {
       btn.disabled = false;
-      setMsg('cal-msg', 'Pas de réseau : ta présence n’a pas été enregistrée. Réessaie dès que le réseau revient.', 'err');
+      setMsg('cal-msg', 'Pas de réseau : ta réponse n’a pas été enregistrée. Réessaie dès que le réseau revient.', 'err');
     } finally {
       state.presBusy = false;
     }
   }
 
-  // Staff : qui est présent, et pour les dates validées à venir, qui n'a pas encore répondu.
+  // Staff : qui est présent, qui ne vient qu'un jour, qui n'est pas disponible, et pour les dates validées à venir, qui n'a pas répondu.
   function staffPresenceNode(e, today) {
     if (isAnnounce(e)) return null;
-    var yes = e.present || [], wait = e.waiting || [];
+    var yes = e.present || [], sat = e.sat || [], sun = e.sun || [], no = e.absent || [], wait = e.waiting || [];
     var open = presenceOpen(e, today);
-    if (!open && !yes.length) return null;
+    if (!open && !yes.length && !sat.length && !sun.length && !no.length) return null;
     var box = el('div', 'pres-staff');
     var head = el('div', 'ph');
-    head.appendChild(el('b', null, yes.length + (yes.length > 1 ? ' présents' : ' présent')));
-    if (open) head.appendChild(el('span', null, ' sur ' + (yes.length + wait.length)));
+    if (e.status === 'Validé') {
+      head.appendChild(el('b', null, yes.length + (yes.length > 1 ? ' présents' : ' présent')));
+      if (open) head.appendChild(el('span', null, ' sur ' + (yes.length + sat.length + sun.length + no.length + wait.length)));
+    } else {
+      head.appendChild(el('b', null, no.length + (no.length > 1 ? ' indisponibles' : ' indisponible')));
+      head.appendChild(el('span', null, ' (date à confirmer)'));
+    }
     box.appendChild(head);
-    if (yes.length) box.appendChild(el('div', 'pn', yes.join(', ')));
-    else box.appendChild(el('div', 'pn none', 'Personne n’a encore validé.'));
+    if (e.status === 'Validé') {
+      if (yes.length) box.appendChild(el('div', 'pn', yes.join(', ')));
+      else box.appendChild(el('div', 'pn none', 'Personne n’a encore validé.'));
+      if (sat.length) box.appendChild(el('div', 'pn', 'Que le samedi : ' + sat.join(', ')));
+      if (sun.length) box.appendChild(el('div', 'pn', 'Que le dimanche : ' + sun.join(', ')));
+    }
+    if (no.length) {
+      var det0 = el('details', 'pw');
+      det0.appendChild(el('summary', null, 'Pas disponibles (' + no.length + ')'));
+      det0.appendChild(el('div', 'pn', no.join(', ')));
+      box.appendChild(det0);
+    }
     if (wait.length) {
       var det = el('details', 'pw');
       det.appendChild(el('summary', null, 'Sans réponse (' + wait.length + ')'));
@@ -842,7 +905,7 @@
   }
 
   function heroNode(e, today, ctx) {
-    var h = el('section', 'hero');
+    var h = el('section', 'hero t-' + eventType(e));
     h.appendChild(el('div', 'k', 'Prochaine date validée · ' + untilText(e, today)));
     h.appendChild(el('div', 'ht', e.title));
     h.appendChild(el('div', 'hd', dayText(e.date, today) + (e.end ? ' → ' + dayText(e.end, today) : '')));
@@ -879,7 +942,18 @@
     body.appendChild(seg);
 
     var shown = filter === 'valid' ? next.filter(function (e) { return e.status === 'Validé'; }) : next;
-    var c = card('À venir', 'Les dates validées sont en vert. Les autres ne sont pas encore confirmées : ne bloque rien pour elles.');
+    var c = card('À venir', 'La couleur indique le type d’évènement. Les dates « ✓ VALIDÉ » sont en couleur pleine ; les cartes en pointillés ne sont pas encore confirmées : ne bloque rien pour elles.');
+    var present = {};
+    next.forEach(function (e) { present[eventType(e)] = true; });
+    var leg = el('div', 'tlegend');
+    TYPE_ORDER.forEach(function (t) {
+      if (!present[t]) return;
+      var chip = el('span', 'tl t-' + t);
+      chip.appendChild(el('i'));
+      chip.appendChild(document.createTextNode(TYPES[t]));
+      leg.appendChild(chip);
+    });
+    if (leg.childNodes.length) c.appendChild(leg);
     if (shown.length) {
       var ul = el('ul', 'events');
       shown.forEach(function (e) { ul.appendChild(eventNode(e, today, ctx)); });
